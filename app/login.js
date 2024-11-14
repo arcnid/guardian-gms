@@ -1,18 +1,23 @@
 // app/login.js
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { View, Text, TextInput, Alert, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons"; // Import icon library
-import styles from "./styles/styles";
+import styles from "./styles/styles"; // Ensure this path is correct
+import { AuthContext } from "../contexts/AuthContext"; // Import AuthContext
 
 const LoginScreen = () => {
 	const router = useRouter();
+	const { login } = useContext(AuthContext); // Access the login function from AuthContext
 	const [username, setUsername] = useState("");
 	const [password, setPassword] = useState("");
 
-	const handleLogin = () => {
+	const handleLogin = async () => {
+		// Replace this with your actual authentication logic
 		if (username === "user" && password === "password") {
-			router.replace("/dashboard");
+			const fakeToken = "1234567890abcdef"; // Simulate a token from server
+			await login(fakeToken); // Update auth state and persist token
+			router.replace("/dashboard"); // Redirect to Dashboard
 		} else {
 			Alert.alert("Login Failed", "Invalid username or password.");
 		}
