@@ -26,7 +26,7 @@ const DashboardScreen = () => {
 	const summaryData = [
 		{
 			id: "1",
-			title: "Total Devices",
+			title: "Devices",
 			count: "4",
 			icon: "devices",
 			color: "#71A12F",
@@ -52,7 +52,6 @@ const DashboardScreen = () => {
 			<ScrollView contentContainerStyle={styles.scrollContent}>
 				<Text style={styles.header}>Welcome, User!</Text>
 
-				{/* Summary Cards */}
 				<View style={styles.summaryContainer}>
 					{summaryData.map((item) => (
 						<View key={item.id} style={styles.summaryCard}>
@@ -63,7 +62,6 @@ const DashboardScreen = () => {
 					))}
 				</View>
 
-				{/* Featured Device */}
 				<View style={styles.featuredCard}>
 					<Text style={styles.featuredTitle}>Featured Device</Text>
 					<View style={styles.featuredContent}>
@@ -80,7 +78,6 @@ const DashboardScreen = () => {
 					</View>
 				</View>
 
-				{/* Logout Button */}
 				<TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
 					<Text style={styles.buttonText}>Log Out</Text>
 				</TouchableOpacity>
