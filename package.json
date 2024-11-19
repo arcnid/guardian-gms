@@ -15,11 +15,13 @@
     "preset": "jest-expo"
   },
   "dependencies": {
+    "@expo/config-plugins": "^9.0.9",
     "@expo/vector-icons": "^14.0.4",
     "@gluestack-ui/themed": "^1.1.59",
     "@react-native-async-storage/async-storage": "1.23.1",
     "@react-navigation/native": "^7.0.0",
     "@supabase/supabase-js": "^2.46.1",
+    "dotenv": "^16.4.5",
     "expo": "^52.0.6",
     "expo-app-loading": "^2.1.1",
     "expo-constants": "~17.0.3",
@@ -34,6 +36,7 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-native": "0.76.1",
+    "react-native-dotenv": "^3.4.11",
     "react-native-gesture-handler": "~2.20.2",
     "react-native-progress": "^5.0.1",
     "react-native-reanimated": "~3.16.1",

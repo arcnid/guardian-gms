@@ -1,25 +1,47 @@
-// app/login.js
 import React, { useState, useContext } from "react";
-import { View, Text, TextInput, Alert, TouchableOpacity } from "react-native";
+import {
+	View,
+	Text,
+	TextInput,
+	Alert,
+	TouchableOpacity,
+	ActivityIndicator,
+} from "react-native";
 import { useRouter } from "expo-router";
-import { MaterialIcons } from "@expo/vector-icons"; // Import icon library
-import styles from "./styles/styles"; // Ensure this path is correct
-import { AuthContext } from "../contexts/AuthContext"; // Import AuthContext
+import { MaterialIcons } from "@expo/vector-icons";
+import styles from "./styles/styles";
+import { AuthContext } from "../contexts/AuthContext";
 
 const LoginScreen = () => {
 	const router = useRouter();
-	const { login } = useContext(AuthContext); // Access the login function from AuthContext
+	const { login } = useContext(AuthContext);
 	const [username, setUsername] = useState("");
 	const [password, setPassword] = useState("");
+	const [loading, setLoading] = useState(false);
 
 	const handleLogin = async () => {
-		// Replace this with your actual authentication logic
-		if (username === "user" && password === "password") {
-			const fakeToken = "1234567890abcdef"; // Simulate a token from server
-			await login(fakeToken); // Update auth state and persist token
-			router.replace("/dashboard"); // Redirect to Dashboard
-		} else {
-			Alert.alert("Login Failed", "Invalid username or password.");
+		if (!username || !password) {
+			Alert.alert("Missing Fields", "Please enter both username and password.");
+			return;
+		}
+
+		setLoading(true);
+
+		try {
+			await login(username, password);
+
+			// Redirect to dashboard - without the use of setTimeout, the router will not navigate
+			setTimeout(() => {
+				router.replace("/dashboard");
+			}, 0);
+		} catch (error) {
+			console.error("Login error:", error.message);
+			Alert.alert(
+				"Login Failed",
+				error.message || "Invalid username or password."
+			);
+		} finally {
+			setLoading(false);
 		}
 	};
 
@@ -63,8 +85,16 @@ const LoginScreen = () => {
 					/>
 				</View>
 
-				<TouchableOpacity onPress={handleLogin} style={styles.loginButton}>
-					<Text style={styles.buttonText}>Login</Text>
+				<TouchableOpacity
+					onPress={handleLogin}
+					style={styles.loginButton}
+					disabled={loading}
+				>
+					{loading ? (
+						<ActivityIndicator size="small" color="#ffffff" />
+					) : (
+						<Text style={styles.buttonText}>Login</Text>
+					)}
 				</TouchableOpacity>
 			</View>
 		</View>
