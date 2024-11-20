@@ -8,6 +8,9 @@ export default {
 		extra: {
 			SUPABASE_URL: process.env.SUPABASE_URL,
 			SUPABASE_KEY: process.env.SUPABASE_ANON_KEY,
+			eas: {
+				projectId: "868c5333-a463-4787-8488-03f595dc677f",
+			},
 		},
 		orientation: "portrait",
 		icon: "./assets/images/icon.png",
@@ -19,9 +22,11 @@ export default {
 			backgroundColor: "#ffffff",
 		},
 		ios: {
+			bundleIdentifier: "com.yourcompany.guardian", // Unique identifier for iOS
 			supportsTablet: true,
 		},
 		android: {
+			package: "com.yourcompany.guardian", // Unique identifier for Android
 			adaptiveIcon: {
 				foregroundImage: "./assets/images/adaptive-icon.png",
 				backgroundColor: "#ffffff",

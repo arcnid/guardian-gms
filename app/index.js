@@ -21,9 +21,6 @@ const Index = () => {
 
 	return (
 		<View style={styles.container}>
-			<Text style={styles.text}>
-				Welcome to the Guardian Grain Management System!
-			</Text>
 			{/* Optionally, add a loading indicator or splash screen content here */}
 		</View>
 	);
