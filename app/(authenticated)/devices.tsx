@@ -47,10 +47,10 @@ const DevicesScreen = () => {
 	const [devices, setDevices] = useState(initialDevices);
 	const [refreshing, setRefreshing] = useState(false);
 
-	const handleManageDevice = (deviceId) => {
+	const handleManageDevice = (deviceId: any) => {
 		console.log("Managing device with ID:", deviceId);
 		// Navigate to a device management screen or show a modal
-		router.push(`/devices/manage/${deviceId}`);
+		router.push({ pathname: `/devices/manage/${deviceId}` as any });
 	};
 
 	const onRefresh = () => {
@@ -62,7 +62,7 @@ const DevicesScreen = () => {
 		}, 2000);
 	};
 
-	const renderDevice = ({ item }) => (
+	const renderDevice = ({ item }: any) => (
 		<TouchableOpacity
 			style={styles.deviceCard}
 			onPress={() => handleManageDevice(item.id)}

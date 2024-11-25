@@ -55,7 +55,11 @@ const DashboardScreen = () => {
 				<View style={styles.summaryContainer}>
 					{summaryData.map((item) => (
 						<View key={item.id} style={styles.summaryCard}>
-							<MaterialIcons name={item.icon} size={30} color={item.color} />
+							<MaterialIcons
+								name={item.icon as any}
+								size={30}
+								color={item.color}
+							/>
 							<Text style={styles.summaryCount}>{item.count}</Text>
 							<Text style={styles.summaryTitle}>{item.title}</Text>
 						</View>

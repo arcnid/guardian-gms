@@ -33,9 +33,9 @@ const LoginScreen = () => {
 
 			// Redirect to dashboard - without the use of setTimeout, the router will not navigate
 			setTimeout(() => {
-				router.replace("/dashboard");
+				router.replace({ pathname: "/dashboard" });
 			}, 0);
-		} catch (error) {
+		} catch (error: any) {
 			console.error("Login error:", error.message);
 			Alert.alert(
 				"Login Failed",
@@ -90,7 +90,7 @@ const LoginScreen = () => {
 					style={{
 						flexDirection: "row",
 						justifyContent: "space-between",
-						marginBottom: "10px",
+						marginBottom: 10,
 					}}
 				>
 					<Text>Remember Me?</Text>
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
 	},
 	webInput: {
 		outlineStyle: "none", // Removes the outline specifically for web
-	},
+	} as any,
 	loginButton: {
 		backgroundColor: "#71A12F",
 		paddingVertical: 10,

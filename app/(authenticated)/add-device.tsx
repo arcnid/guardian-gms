@@ -24,7 +24,7 @@ const AddDeviceScreen = () => {
 	const [deviceName, setDeviceName] = useState("");
 
 	// Handle method selection
-	const handleMethodSelect = (method) => {
+	const handleMethodSelect = (method: any) => {
 		setSelectedMethod(method);
 		setCurrentStage(1); // Move to the connection stage
 		// Simulate connection process
@@ -117,7 +117,7 @@ const AddDeviceScreen = () => {
 										{
 											text: "OK",
 											onPress: (text) => {
-												setDeviceName(text);
+												setDeviceName(text as any);
 											},
 										},
 									],
