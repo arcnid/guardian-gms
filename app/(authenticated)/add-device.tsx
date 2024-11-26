@@ -8,6 +8,8 @@ import {
 	SafeAreaView,
 	Alert,
 	ActivityIndicator,
+	FlatList,
+	Platform,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -22,10 +24,58 @@ const AddDeviceScreen = () => {
 	const [selectedMethod, setSelectedMethod] = useState(null);
 	const [isConnecting, setIsConnecting] = useState(false);
 	const [deviceName, setDeviceName] = useState("");
+	const [wifiNetworks, setWifiNetworks] = useState([]); // New state for WiFi networks
+	const [selectedNetwork, setSelectedNetwork] = useState(null); // New state for selected network
+
+	const apConnection = async () => {
+		// const fallBackAPIP = "192.168.4.1";
+		const fallBackAPIP = "https://8965-66-115-208-226.ngrok-free.app";
+
+		try {
+			const result = await fetch(`${fallBackAPIP}/scanWifi`, {
+				method: "GET",
+				headers: {
+					"Content-Type": "application/json",
+					"ngrok-skip-browser-warning": "true",
+				},
+			});
+
+			if (!result.ok) {
+				if (Platform.OS === "web") {
+					window.alert("Failed to connect to the device");
+				}
+				Alert.alert("Error", "Failed to connect to the device");
+				return;
+			}
+
+			const data = await result.json();
+
+			console.log(data);
+
+			// Assume data is an array of WiFi networks
+			setWifiNetworks(data);
+
+			// Set selected method to indicate WiFi selection in progress
+			setSelectedMethod("AP Scan");
+
+			// We stay in currentStage 0, and render the list based on selectedMethod and wifiNetworks
+		} catch (error) {
+			console.log("oops");
+			console.log(error);
+		}
+	};
 
 	// Handle method selection
 	const handleMethodSelect = (method: any) => {
 		setSelectedMethod(method);
+		setCurrentStage(1); // Move to the connection stage
+		// Simulate connection process
+		simulateConnection();
+	};
+
+	// Handle WiFi network selection
+	const handleWifiNetworkSelect = (network: any) => {
+		setSelectedNetwork(network);
 		setCurrentStage(1); // Move to the connection stage
 		// Simulate connection process
 		simulateConnection();
@@ -56,33 +106,50 @@ const AddDeviceScreen = () => {
 	const renderContent = () => {
 		switch (currentStage) {
 			case 0:
-				return (
-					<View style={styles.optionsContainer}>
-						<TouchableOpacity
-							style={styles.optionCard}
-							onPress={() => handleMethodSelect("Bluetooth")}
-						>
-							<MaterialIcons name="bluetooth" size={40} color="#71A12F" />
-							<Text style={styles.optionText}>Add Via Bluetooth</Text>
-						</TouchableOpacity>
+				if (selectedMethod === "AP Scan" && wifiNetworks.length > 0) {
+					return (
+						<FlatList
+							data={wifiNetworks}
+							keyExtractor={(item) => item.ssid}
+							renderItem={({ item }) => (
+								<TouchableOpacity
+									style={styles.optionCard}
+									onPress={() => handleWifiNetworkSelect(item)}
+								>
+									<Text style={styles.optionText}>{item.ssid}</Text>
+								</TouchableOpacity>
+							)}
+						/>
+					);
+				} else {
+					return (
+						<View style={styles.optionsContainer}>
+							<TouchableOpacity
+								style={styles.optionCard}
+								onPress={() => handleMethodSelect("Bluetooth")}
+							>
+								<MaterialIcons name="bluetooth" size={40} color="#71A12F" />
+								<Text style={styles.optionText}>Add Via Bluetooth</Text>
+							</TouchableOpacity>
 
-						<TouchableOpacity
-							style={styles.optionCard}
-							onPress={() => handleMethodSelect("Wi-Fi AP Scan")}
-						>
-							<MaterialIcons name="wifi" size={40} color="#71A12F" />
-							<Text style={styles.optionText}>Add Via WIFI (AP Scan)</Text>
-						</TouchableOpacity>
+							<TouchableOpacity
+								style={styles.optionCard}
+								onPress={() => apConnection()}
+							>
+								<MaterialIcons name="wifi" size={40} color="#71A12F" />
+								<Text style={styles.optionText}>Add Via WIFI (AP Scan)</Text>
+							</TouchableOpacity>
 
-						<TouchableOpacity
-							style={styles.optionCard}
-							onPress={() => handleMethodSelect("Scan Network")}
-						>
-							<MaterialIcons name="network-check" size={40} color="#71A12F" />
-							<Text style={styles.optionText}>Scan Network</Text>
-						</TouchableOpacity>
-					</View>
-				);
+							<TouchableOpacity
+								style={styles.optionCard}
+								onPress={() => handleMethodSelect("Scan Network")}
+							>
+								<MaterialIcons name="network-check" size={40} color="#71A12F" />
+								<Text style={styles.optionText}>Scan Network</Text>
+							</TouchableOpacity>
+						</View>
+					);
+				}
 
 			case 1:
 				return (
