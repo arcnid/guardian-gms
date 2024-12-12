@@ -12,6 +12,7 @@ export default {
 				projectId: "868c5333-a463-4787-8488-03f595dc677f",
 			},
 		},
+		platforms: ["ios", "android, web"],
 		orientation: "portrait",
 		icon: "./assets/images/icon.png",
 		scheme: "myapp",
@@ -22,7 +23,7 @@ export default {
 			backgroundColor: "#ffffff",
 		},
 		ios: {
-			bundleIdentifier: "com.yourcompany.guardian", // Unique identifier for iOS
+			bundleIdentifier: "com.SiouxSteel.guardian", // Unique identifier for iOS
 			supportsTablet: true,
 		},
 		android: {

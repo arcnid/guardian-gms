@@ -8,13 +8,13 @@ const About = () => {
 		<SafeAreaView style={styles.safeArea}>
 			<ScrollView style={styles.container}>
 				{/* Reusable Back Button */}
-				<BackButton />
+				<BackButton label="Settings" />
 
 				<Text style={styles.heading}>About This Application</Text>
 
 				<View style={styles.card}>
 					<Text style={styles.cardTitle}>Application Information</Text>
-					<Text style={styles.cardContent}>Version: 1.0.0</Text>
+					<Text style={styles.cardContent}>Version: 1.0.1</Text>
 					<Text style={styles.cardContent}>Last Updated: November 2024</Text>
 				</View>
 

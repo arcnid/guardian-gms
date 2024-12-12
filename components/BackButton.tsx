@@ -1,9 +1,9 @@
 import React from "react";
-import { TouchableOpacity, Text, StyleSheet } from "react-native";
+import { TouchableOpacity, Text, StyleSheet, View } from "react-native";
 import { useNavigation } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 
-const BackButton = ({ label = "Back" }) => {
+const BackButton = ({ label = "Back" }: { label?: string }) => {
 	const navigation = useNavigation();
 
 	return (
@@ -11,8 +11,10 @@ const BackButton = ({ label = "Back" }) => {
 			style={styles.backButton}
 			onPress={() => navigation.goBack()} // Navigate back to the previous screen
 		>
-			<MaterialIcons name="chevron-left" size={24} color="#71A12F" />
-			<Text style={styles.backButtonText}>{label}</Text>
+			<View style={{ flexDirection: "row", alignItems: "center", gap: -10 }}>
+				<MaterialIcons name="chevron-left" size={24} color="#71A12F" />
+				<Text style={styles.backButtonText}>{label}</Text>
+			</View>
 		</TouchableOpacity>
 	);
 };
@@ -29,7 +31,8 @@ const styles = StyleSheet.create({
 		color: "#71A12F",
 		fontSize: 16,
 		fontWeight: "bold",
-		marginLeft: 5, // Add spacing between icon and text
+		marginLeft: 0, // Add spacing between icon and text
+		marginBottom: 2.5,
 	},
 });
 

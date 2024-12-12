@@ -6,7 +6,14 @@ import { AuthContext } from "../../contexts/AuthContext"; // Adjust path as need
 import { MaterialIcons } from "@expo/vector-icons";
 
 const AuthenticatedLayout = () => {
-	const { isLoggedIn } = useContext(AuthContext);
+	const authContext = useContext(AuthContext);
+
+	// Error handling to ensure AuthContext is provided
+	if (!authContext) {
+		throw new Error("AuthContext must be used within an AuthProvider");
+	}
+
+	const { isLoggedIn } = authContext;
 	const router = useRouter();
 
 	useEffect(() => {
@@ -14,6 +21,18 @@ const AuthenticatedLayout = () => {
 		if (isLoggedIn === false) {
 			router.replace("/login");
 		}
+	}, [isLoggedIn, router]);
+
+	useEffect(() => {
+		// Handle case where isLoggedIn might remain null
+		const timeout = setTimeout(() => {
+			if (isLoggedIn === null) {
+				console.error("Authentication status timeout. Redirecting to login.");
+				router.replace("/login");
+			}
+		}, 5000); // 5 seconds timeout
+
+		return () => clearTimeout(timeout);
 	}, [isLoggedIn, router]);
 
 	// Show a loading indicator while checking authentication status
@@ -48,8 +67,28 @@ const AuthenticatedLayout = () => {
 			<Tabs.Screen
 				name="dashboard"
 				options={{
-					tabBarIcon: ({ color, size }) => (
-						<MaterialIcons name="home" color={color} size={size} />
+					tabBarIcon: ({ color, size, focused }) => (
+						<MaterialIcons
+							name="home"
+							color={color}
+							size={focused ? size + 2 : size}
+							accessibilityLabel="Home"
+						/>
+					),
+				}}
+			/>
+
+			{/* Locations Tab */}
+			<Tabs.Screen
+				name="locations"
+				options={{
+					tabBarIcon: ({ color, size, focused }) => (
+						<MaterialIcons
+							name="location-on" // Icon name for Locations
+							color={color}
+							size={focused ? size + 2 : size}
+							accessibilityLabel="Locations"
+						/>
 					),
 				}}
 			/>
@@ -58,8 +97,13 @@ const AuthenticatedLayout = () => {
 			<Tabs.Screen
 				name="devices"
 				options={{
-					tabBarIcon: ({ color, size }) => (
-						<MaterialIcons name="devices" color={color} size={size} />
+					tabBarIcon: ({ color, size, focused }) => (
+						<MaterialIcons
+							name="devices"
+							color={color}
+							size={focused ? size + 2 : size}
+							accessibilityLabel="Devices"
+						/>
 					),
 				}}
 			/>
@@ -68,8 +112,13 @@ const AuthenticatedLayout = () => {
 			<Tabs.Screen
 				name="settings"
 				options={{
-					tabBarIcon: ({ color, size }) => (
-						<MaterialIcons name="settings" color={color} size={size} />
+					tabBarIcon: ({ color, size, focused }) => (
+						<MaterialIcons
+							name="settings"
+							color={color}
+							size={focused ? size + 2 : size}
+							accessibilityLabel="Settings"
+						/>
 					),
 				}}
 			/>
@@ -78,8 +127,13 @@ const AuthenticatedLayout = () => {
 			<Tabs.Screen
 				name="add-device"
 				options={{
-					tabBarIcon: ({ color, size }) => (
-						<MaterialIcons name="add" color={color} size={size} />
+					tabBarIcon: ({ color, size, focused }) => (
+						<MaterialIcons
+							name="add"
+							color={color}
+							size={focused ? size + 2 : size}
+							accessibilityLabel="Add Device"
+						/>
 					),
 				}}
 			/>
