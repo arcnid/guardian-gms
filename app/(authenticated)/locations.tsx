@@ -14,7 +14,7 @@ import {
 	TouchableWithoutFeedback,
 } from "react-native";
 import { MaterialIcons, FontAwesome5, Ionicons } from "@expo/vector-icons"; // Additional icons
-import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps"; // Map components
+//import CustomMapView from "@/components/CustomMapView";
 
 // Enable LayoutAnimation on Android
 if (
@@ -23,6 +23,22 @@ if (
 ) {
 	UIManager.setLayoutAnimationEnabledExperimental(true);
 }
+
+const CustomMapView = React.lazy(() => {
+	if (Platform.OS !== "web") {
+		// Dynamically import only for native platforms
+		return import("@/components/CustomMapView");
+	}
+
+	// Provide a valid fallback for web platforms
+	return Promise.resolve({
+		default: () => (
+			<View style={styles.mapContainer}>
+				<Text style={styles.mapText}>Map is not supported on the web.</Text>
+			</View>
+		),
+	});
+});
 
 // Theme Variables (Original Branding)
 const Colors = {
@@ -237,7 +253,7 @@ const LocationsScreen = () => {
 			{activeTab === "List" ? (
 				<ListView />
 			) : (
-				<CustomMapView onMarkerPress={handleMarkerPress} />
+				<CustomMapView onMarkerPress={handleMarkerPress} mockData={mockData} />
 			)}
 
 			{/* Modal for displaying site details */}
@@ -599,49 +615,10 @@ const DeviceItem = ({ device }) => {
  * CustomMapView Component to display sites on a map
  * Modified to handle web platform by showing a placeholder message
  */
-const CustomMapView = ({ onMarkerPress }) => {
-	// Define initial region centered around the first site or a default location
-	const initialRegion = {
-		latitude: mockData[0].latitude || 43.509, // East River, SD
-		longitude: mockData[0].longitude || -96.9568,
-		latitudeDelta: 5,
-		longitudeDelta: 5,
-	};
-
-	// Check if the platform is web
-	const isWeb = Platform.OS === "web";
-
-	if (isWeb) {
-		return (
-			<View style={styles.mapContainer}>
-				<Text style={styles.mapText}>Map is not supported on the web.</Text>
-			</View>
-		);
-	}
-
-	return (
-		<MapView style={styles.mapContainer} initialRegion={initialRegion}>
-			{mockData.map((site) => (
-				<Marker
-					key={site.id}
-					coordinate={{
-						latitude: site.latitude,
-						longitude: site.longitude,
-					}}
-					title={site.name}
-					description={`${site.bins.length} Bin${
-						site.bins.length > 1 ? "s" : ""
-					}, ${site.bins.reduce((acc, bin) => acc + bin.devices.length, 0)} Device${
-						site.bins.reduce((acc, bin) => acc + bin.devices.length, 0) > 1
-							? "s"
-							: ""
-					}`}
-					onPress={() => onMarkerPress(site)}
-				/>
-			))}
-		</MapView>
-	);
-};
+/**
+ * CustomMapView Component to display sites on a map
+ * Conditionally renders MapView for native platforms or a placeholder for web.
+ */
 
 /**
  * Stylesheet for the component

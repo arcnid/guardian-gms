@@ -18,6 +18,7 @@ import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native"; // Added import
 import * as Progress from "react-native-progress"; // For the progress bar
 import { parseQueryParams } from "expo-router/build/fork/getStateFromPath-forks";
+import { AuthService } from "@/services/authService";
 
 const AddDeviceScreen = () => {
 	const router = useRouter();
@@ -56,6 +57,7 @@ const AddDeviceScreen = () => {
 		const payload = {
 			ssid: network,
 			password,
+			userId: await AuthService.getCurrentUser(),
 		};
 
 		console.log("Sending network details to embedded device");
