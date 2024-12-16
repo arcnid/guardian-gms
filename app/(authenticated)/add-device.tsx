@@ -1,5 +1,5 @@
 // app/(authenticated)/add-device.js
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
 	View,
 	Text,
@@ -19,6 +19,14 @@ import { useFocusEffect } from "@react-navigation/native"; // Added import
 import * as Progress from "react-native-progress"; // For the progress bar
 import { parseQueryParams } from "expo-router/build/fork/getStateFromPath-forks";
 import { AuthService } from "@/services/authService";
+import { v4 as uuidv4 } from "uuid";
+import { linkDeviceToUser } from "@/utils/addDevice";
+import "react-native-get-random-values";
+import { getMqttClient } from "@/utils/mqttClient";
+
+const BrokerUrl =
+	"wss://812d2adb6dfb490f812a58bb370668c9.s1.eu.hivemq.cloud:8884/mqtt";
+const BrokerPort = "8884";
 
 const AddDeviceScreen = () => {
 	const router = useRouter();
@@ -37,6 +45,9 @@ const AddDeviceScreen = () => {
 	const [wifiPassword, setWifiPassword] = useState("");
 	const [selectedSecureNetwork, setSelectedSecureNetwork] = useState(null);
 
+	//for reference when offline
+	const [userId, setUserId] = useState(null);
+
 	// Reset state when the screen is focused
 	useFocusEffect(
 		React.useCallback(() => {
@@ -53,11 +64,166 @@ const AddDeviceScreen = () => {
 		}, [])
 	);
 
+	useEffect(() => {
+		const fetchUserId = async () => {
+			console.log("fetching user id");
+			try {
+				const id = await AuthService.getCurrentUser();
+
+				console.log("setting", id.data.user.id);
+				setUserId(id.data.user.id); // Store the userId in state
+			} catch (error) {
+				console.error("Error fetching user ID:", error);
+			}
+		};
+
+		fetchUserId();
+	}, []);
+
+	useEffect(() => {
+		if (Platform.OS == "web") {
+			// const client = getMqttClient({
+			// 	brokerUrl: BrokerUrl,
+			// 	options: {
+			// 		username: "username",
+			// 		password: "sdhBkb7!",
+			// 		clientId: `mqtt_${Math.random().toString(16).slice(2, 8)}`,
+			// 	},
+			// 	onMessageCallback: (topic, data) => {},
+			// });
+			// client.subscribe(`/gms/user/${userId}`, (err: any) => {
+			// 	if (!err) {
+			// 		console.log("Subscribed to the topic", `/gms/user/${userId}`);
+			// 	} else {
+			// 		console.error("Failed to connect to topic", err.message);
+			// 	}
+			// });
+			// client.on("message", (topic, payload) => {
+			// 	try {
+			// 		// Convert payload from Buffer to string
+			// 		const stringified = payload.toString();
+			// 		// Parse JSON
+			// 		const data = JSON.parse(stringified);
+			// 		// Destructure fields
+			// 		const { userId, deviceId, timestamp } = data;
+			// 		if (timestamp) {
+			// 			// Convert timestamp to Date object and then to a millisecond value
+			// 			const messageTime = new Date(timestamp).getTime();
+			// 			// Get the current time in milliseconds
+			// 			const currentTime = Date.now();
+			// 			// Check if timestamp is valid
+			// 			if (isNaN(messageTime)) {
+			// 				console.log("Invalid timestamp format.");
+			// 				return;
+			// 			}
+			// 			// Calculate the time difference in milliseconds
+			// 			const timeDifference = currentTime - messageTime;
+			// 			// Check if the message is less than 1 hour old
+			// 			if (timeDifference <= 3600000) {
+			// 				// 1 hour = 3600000 ms
+			// 				linkDeviceToUser({ userId, deviceId });
+			// 				console.log("Message processed successfully.");
+			// 			} else {
+			// 				console.log("Message is too old.");
+			// 			}
+			// 		} else {
+			// 			console.log("Timestamp missing from the message.");
+			// 		}
+			// 	} catch (error) {
+			// 		console.error("Failed to process message:", error);
+			// 	}
+			// });
+		} else {
+			const client = getMqttClient({
+				brokerUrl: BrokerUrl,
+				clientId: `mqtt_${Math.random().toString(16).slice(2, 8)}`,
+				options: {
+					port: 8884,
+				},
+			});
+		}
+	}, [userId]);
+
+	// declar the mqtt client and subscribe to the topic "/gms/user/${userId}"
+	// useEffect(() => {
+	// 	console.log("Connecting to broker");
+
+	// 	try {
+	// 		const client = mqtt.connect(BrokerUrl, {
+	// 			username: "username", // Replace with actual username
+	// 			password: "sdhBkb7!", // Replace with actual password
+	// 			clientId: `mqtt_${Math.random().toString(16).slice(2, 8)}`, // Unique client ID
+	// 		});
+
+	// 		client.on("connect", () => {
+	// 			console.log("Connected to MQTT broker");
+	// 		});
+
+	// 		client.on("error", (err) => {
+	// 			console.error("MQTT connection error:", err);
+	// 		});
+
+	// 		client.subscribe(`/gms/user/${userId}`, (err: any) => {
+	// 			if (!err) {
+	// 				console.log("Subscribed to the topic", `/gms/user/${userId}`);
+	// 			} else {
+	// 				console.error("Failed to connect to topic", err.message);
+	// 			}
+	// 		});
+
+	// 		client.on("message", (topic, payload) => {
+	// 			try {
+	// 				// Convert payload from Buffer to string
+	// 				const stringified = payload.toString();
+
+	// 				// Parse JSON
+	// 				const data = JSON.parse(stringified);
+
+	// 				// Destructure fields
+	// 				const { userId, deviceId, timestamp } = data;
+
+	// 				if (timestamp) {
+	// 					// Convert timestamp to Date object and then to a millisecond value
+	// 					const messageTime = new Date(timestamp).getTime();
+
+	// 					// Get the current time in milliseconds
+	// 					const currentTime = Date.now();
+
+	// 					// Check if timestamp is valid
+	// 					if (isNaN(messageTime)) {
+	// 						console.log("Invalid timestamp format.");
+	// 						return;
+	// 					}
+
+	// 					// Calculate the time difference in milliseconds
+	// 					const timeDifference = currentTime - messageTime;
+
+	// 					// Check if the message is less than 1 hour old
+	// 					if (timeDifference <= 3600000) {
+	// 						// 1 hour = 3600000 ms
+	// 						linkDeviceToUser({ userId, deviceId });
+	// 						console.log("Message processed successfully.");
+	// 					} else {
+	// 						console.log("Message is too old.");
+	// 					}
+	// 				} else {
+	// 					console.log("Timestamp missing from the message.");
+	// 				}
+	// 			} catch (error) {
+	// 				console.error("Failed to process message:", error);
+	// 			}
+	// 		});
+	// 	} catch (e) {
+	// 		console.error("Error establishing MQTT connection");
+	// 	}
+	// }, [userId]);
+
 	const connectToWifi = async (network: string, password = "") => {
 		const payload = {
 			ssid: network,
 			password,
-			userId: await AuthService.getCurrentUser(),
+			userId: userId,
+			deviceId: uuidv4(),
 		};
 
 		console.log("Sending network details to embedded device");
@@ -91,6 +257,8 @@ const AddDeviceScreen = () => {
 			}
 
 			console.log("WiFi Connection Result: ", result.message);
+
+			linkDeviceToUser({ deviceId: payload.deviceId, userId: userId as any });
 		} catch (e) {
 			console.error(e);
 			return false;
@@ -211,6 +379,8 @@ const AddDeviceScreen = () => {
 		const payload = {
 			ssid: selectedSecureNetwork.ssid,
 			password: wifiPassword,
+			userId,
+			deviceId: uuidv4(),
 		};
 
 		console.log("about to send a payload", payload);
@@ -246,6 +416,7 @@ const AddDeviceScreen = () => {
 				setSelectedNetwork(selectedSecureNetwork);
 				setCurrentStage(1); // Move to the connection stage
 				// Simulate connection process
+				linkDeviceToUser({ deviceId: payload.deviceId, userId: userId as any });
 				simulateConnection();
 			} else {
 				Alert.alert(
