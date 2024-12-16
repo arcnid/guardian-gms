@@ -14,34 +14,41 @@ import { useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import { AuthContext } from "../contexts/AuthContext";
 
-const LoginScreen = () => {
+const SignupScreen = () => {
 	const router = useRouter();
-	const { login } = useContext(AuthContext);
-	const [email, setEmail] = useState(""); // Changed from username to email
+	const { signUp } = useContext(AuthContext); // Assuming AuthContext provides signUp
+	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
+	const [confirmPassword, setConfirmPassword] = useState("");
 	const [loading, setLoading] = useState(false);
-	const [rememberMe, setRememberMe] = useState(false); // Added state for checkbox
 
-	const handleLogin = async () => {
-		if (!email || !password) {
-			Alert.alert("Missing Fields", "Please enter both email and password.");
+	const handleSignUp = async () => {
+		if (!email || !password || !confirmPassword) {
+			Alert.alert("Missing Fields", "Please fill in all the fields.");
+			return;
+		}
+
+		if (password !== confirmPassword) {
+			Alert.alert("Password Mismatch", "Passwords do not match.");
 			return;
 		}
 
 		setLoading(true);
 
 		try {
-			await login(email, password); // Use email instead of username
+			await signUp(email, password);
 
-			// Redirect to dashboard
+			Alert.alert("Success", "Account created successfully!");
+
+			// Redirect to login or dashboard
 			setTimeout(() => {
 				router.replace({ pathname: "/dashboard" });
 			}, 0);
 		} catch (error: any) {
-			console.error("Login error:", error.message);
+			console.error("Signup error:", error.message);
 			Alert.alert(
-				"Login Failed",
-				error.message || "Invalid email or password."
+				"Signup Failed",
+				error.message || "An error occurred during signup."
 			);
 		} finally {
 			setLoading(false);
@@ -73,7 +80,7 @@ const LoginScreen = () => {
 						value={email}
 						onChangeText={setEmail}
 						autoCapitalize="none"
-						keyboardType="email-address" // Enhanced for email input
+						keyboardType="email-address"
 						placeholderTextColor="#888"
 					/>
 				</View>
@@ -95,48 +102,44 @@ const LoginScreen = () => {
 					/>
 				</View>
 
-				{/* Options */}
-				<View style={styles.optionsContainer}>
-					<View style={styles.rememberMeContainer}>
-						<TouchableOpacity
-							style={[styles.checkbox, rememberMe && styles.checkboxChecked]}
-							onPress={() => setRememberMe(!rememberMe)} // Toggle state
-						>
-							{rememberMe && (
-								<MaterialIcons name="check" size={16} color="#fff" />
-							)}
-						</TouchableOpacity>
-						<Text style={styles.rememberMeText}>Remember Me?</Text>
-					</View>
-					<TouchableOpacity
-						onPress={() => {
-							// Navigate to Forgot Password screen or handle accordingly
-							Alert.alert("Forgot Password", "Feature not implemented");
-						}}
-					>
-						<Text style={styles.forgotPassword}>Forgot password?</Text>
-					</TouchableOpacity>
+				<View style={styles.inputContainer}>
+					<MaterialIcons
+						name="lock-outline"
+						size={24}
+						color="#71A12F"
+						style={styles.icon}
+					/>
+					<TextInput
+						style={[styles.input, Platform.OS === "web" && styles.webInput]}
+						placeholder="Confirm Password"
+						value={confirmPassword}
+						onChangeText={setConfirmPassword}
+						secureTextEntry
+						placeholderTextColor="#888"
+					/>
 				</View>
 
-				{/* Login Button */}
+				{/* Signup Button */}
 				<TouchableOpacity
-					onPress={handleLogin}
-					style={styles.loginButton}
+					onPress={handleSignUp}
+					style={styles.signupButton}
 					disabled={loading}
 				>
 					{loading ? (
 						<ActivityIndicator size="small" color="#ffffff" />
 					) : (
-						<Text style={styles.buttonText}>Login</Text>
+						<Text style={styles.buttonText}>Sign Up</Text>
 					)}
 				</TouchableOpacity>
 
-				{/* Signup Button */}
+				{/* Navigate to Login */}
 				<TouchableOpacity
-					onPress={() => router.push("/signup")}
-					style={styles.signupButton}
+					onPress={() => router.push("/login")}
+					style={styles.navigateButton}
 				>
-					<Text style={styles.signupText}>Don't have an account? Sign Up</Text>
+					<Text style={styles.navigateText}>
+						Already have an account? Login
+					</Text>
 				</TouchableOpacity>
 			</View>
 		</View>
@@ -148,7 +151,7 @@ const styles = StyleSheet.create({
 		flex: 1,
 		justifyContent: "center",
 		alignItems: "center",
-		padding: 10, // Reduced padding for better fit
+		padding: 10, // Reduced padding
 		backgroundColor: "#F5F5F5", // Light grey background
 	},
 	card: {
@@ -167,7 +170,7 @@ const styles = StyleSheet.create({
 		marginBottom: 20, // Space between header and inputs
 	},
 	bannerImage: {
-		width: "95%", // Adjusted width for better fit
+		width: "95%", // Fixed width
 		height: 100, // Fixed height to maintain aspect ratio
 		resizeMode: "contain", // Ensures the entire image fits within the container without distortion
 		marginBottom: 0, // Space below the image
@@ -182,7 +185,7 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		textAlign: "center",
 		marginBottom: 20, // Space below the subtitle
-		color: "#555", // Slightly darker text for contrast
+		color: "#555", // Slightly darker text
 	},
 	inputContainer: {
 		flexDirection: "row",
@@ -205,60 +208,27 @@ const styles = StyleSheet.create({
 	webInput: {
 		outlineStyle: "none", // Removes the outline specifically for web
 	} as any,
-	optionsContainer: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
-		marginBottom: 10,
-	},
-	rememberMeContainer: {
-		flexDirection: "row",
-		alignItems: "center",
-	},
-	checkbox: {
-		width: 20,
-		height: 20,
-		borderWidth: 1,
-		borderColor: "#ccc",
-		borderRadius: 3,
-		marginRight: 5,
-		justifyContent: "center",
-		alignItems: "center",
-		backgroundColor: "#fff",
-	},
-	checkboxChecked: {
-		backgroundColor: "#71A12F",
-		borderColor: "#71A12F",
-	},
-	rememberMeText: {
-		fontSize: 14,
-		color: "#333",
-	},
-	loginButton: {
+	signupButton: {
 		backgroundColor: "#71A12F",
 		paddingVertical: 12, // Slightly increased padding for better touch area
 		borderRadius: 10,
 		alignItems: "center",
-		marginTop: 10, // Added margin to separate from options
+		marginTop: 10, // Added margin to separate from inputs
 	},
 	buttonText: {
 		color: "#fff",
 		fontWeight: "bold",
 		fontSize: 16,
 	},
-	forgotPassword: {
-		color: "#71A12F",
-		textDecorationLine: "underline",
-	},
-	signupButton: {
+	navigateButton: {
 		marginTop: 15,
 		alignItems: "center",
 	},
-	signupText: {
+	navigateText: {
 		color: "#71A12F",
 		textDecorationLine: "underline",
 		fontSize: 14,
 	},
 });
 
-export default LoginScreen;
+export default SignupScreen;
