@@ -12,11 +12,10 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
-import { AuthContext } from "../contexts/AuthContext";
+import { AuthService } from "../services/authService";
 
 const SignupScreen = () => {
 	const router = useRouter();
-	const { signUp } = useContext(AuthContext); // Assuming AuthContext provides signUp
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [confirmPassword, setConfirmPassword] = useState("");
@@ -36,7 +35,8 @@ const SignupScreen = () => {
 		setLoading(true);
 
 		try {
-			await signUp(email, password);
+			console.log("about to sign up for Guardian");
+			await AuthService.signUp(email, password);
 
 			Alert.alert("Success", "Account created successfully!");
 

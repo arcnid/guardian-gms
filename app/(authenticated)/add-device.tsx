@@ -1,5 +1,5 @@
 // app/(authenticated)/add-device.js
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext, useCallback } from "react";
 import {
 	View,
 	Text,
@@ -20,35 +20,34 @@ import * as Progress from "react-native-progress"; // For the progress bar
 import { parseQueryParams } from "expo-router/build/fork/getStateFromPath-forks";
 import { AuthService } from "@/services/authService";
 import { v4 as uuidv4 } from "uuid";
-import { linkDeviceToUser } from "@/utils/addDevice";
 import "react-native-get-random-values";
-import { getMqttClient } from "@/utils/mqttClient";
+import { AuthContext } from "@/contexts/AuthContext";
+import { UserDeviceService } from "@/services/userDevice/service";
+import { linkDeviceToUser } from "@/services/userDevice/addDevice";
 
-const BrokerUrl =
-	"wss://812d2adb6dfb490f812a58bb370668c9.s1.eu.hivemq.cloud:8884/mqtt";
-const BrokerPort = "8884";
+const BrokerUrl = "e1b6ac55b4d04e97908f9d4e9e230a95.s2.eu.hivemq.cloud";
+const BrokerPort = "8883";
 
 const AddDeviceScreen = () => {
 	const router = useRouter();
+	const { userId } = useContext(AuthContext);
+	const [deviceId, setDeviceId] = useState(uuidv4());
+	type method = "AP Scan" | null;
 
-	// Define the stages
 	const stages = ["Select Method", "Connect", "Name Device"];
 	const [currentStage, setCurrentStage] = useState(0);
-	const [selectedMethod, setSelectedMethod] = useState(null);
+	const [selectedMethod, setSelectedMethod] = useState<method>(null);
 	const [isConnecting, setIsConnecting] = useState(false);
 	const [deviceName, setDeviceName] = useState("");
-	const [wifiNetworks, setWifiNetworks] = useState([]); // New state for WiFi networks
-	const [selectedNetwork, setSelectedNetwork] = useState(null); // New state for selected network
+	const [wifiNetworks, setWifiNetworks] = useState([]);
+	const [selectedNetwork, setSelectedNetwork] = useState(null);
 
-	// New state variables for password prompt
 	const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
 	const [wifiPassword, setWifiPassword] = useState("");
 	const [selectedSecureNetwork, setSelectedSecureNetwork] = useState(null);
+	const [deviceType, setDeviceType] = useState("");
+	const [hasConnected, setHasConnected] = useState(false);
 
-	//for reference when offline
-	const [userId, setUserId] = useState(null);
-
-	// Reset state when the screen is focused
 	useFocusEffect(
 		React.useCallback(() => {
 			// Reset all state variables to initial values
@@ -64,216 +63,11 @@ const AddDeviceScreen = () => {
 		}, [])
 	);
 
-	useEffect(() => {
-		const fetchUserId = async () => {
-			console.log("fetching user id");
-			try {
-				const id = await AuthService.getCurrentUser();
-
-				console.log("setting", id.data.user.id);
-				setUserId(id.data.user.id); // Store the userId in state
-			} catch (error) {
-				console.error("Error fetching user ID:", error);
-			}
-		};
-
-		fetchUserId();
-	}, []);
-
-	useEffect(() => {
-		if (Platform.OS == "web") {
-			// const client = getMqttClient({
-			// 	brokerUrl: BrokerUrl,
-			// 	options: {
-			// 		username: "username",
-			// 		password: "sdhBkb7!",
-			// 		clientId: `mqtt_${Math.random().toString(16).slice(2, 8)}`,
-			// 	},
-			// 	onMessageCallback: (topic, data) => {},
-			// });
-			// client.subscribe(`/gms/user/${userId}`, (err: any) => {
-			// 	if (!err) {
-			// 		console.log("Subscribed to the topic", `/gms/user/${userId}`);
-			// 	} else {
-			// 		console.error("Failed to connect to topic", err.message);
-			// 	}
-			// });
-			// client.on("message", (topic, payload) => {
-			// 	try {
-			// 		// Convert payload from Buffer to string
-			// 		const stringified = payload.toString();
-			// 		// Parse JSON
-			// 		const data = JSON.parse(stringified);
-			// 		// Destructure fields
-			// 		const { userId, deviceId, timestamp } = data;
-			// 		if (timestamp) {
-			// 			// Convert timestamp to Date object and then to a millisecond value
-			// 			const messageTime = new Date(timestamp).getTime();
-			// 			// Get the current time in milliseconds
-			// 			const currentTime = Date.now();
-			// 			// Check if timestamp is valid
-			// 			if (isNaN(messageTime)) {
-			// 				console.log("Invalid timestamp format.");
-			// 				return;
-			// 			}
-			// 			// Calculate the time difference in milliseconds
-			// 			const timeDifference = currentTime - messageTime;
-			// 			// Check if the message is less than 1 hour old
-			// 			if (timeDifference <= 3600000) {
-			// 				// 1 hour = 3600000 ms
-			// 				linkDeviceToUser({ userId, deviceId });
-			// 				console.log("Message processed successfully.");
-			// 			} else {
-			// 				console.log("Message is too old.");
-			// 			}
-			// 		} else {
-			// 			console.log("Timestamp missing from the message.");
-			// 		}
-			// 	} catch (error) {
-			// 		console.error("Failed to process message:", error);
-			// 	}
-			// });
-		} else {
-			const client = getMqttClient({
-				brokerUrl: BrokerUrl,
-				clientId: `mqtt_${Math.random().toString(16).slice(2, 8)}`,
-				options: {
-					port: 8884,
-				},
-			});
-		}
-	}, [userId]);
-
-	// declar the mqtt client and subscribe to the topic "/gms/user/${userId}"
-	// useEffect(() => {
-	// 	console.log("Connecting to broker");
-
-	// 	try {
-	// 		const client = mqtt.connect(BrokerUrl, {
-	// 			username: "username", // Replace with actual username
-	// 			password: "sdhBkb7!", // Replace with actual password
-	// 			clientId: `mqtt_${Math.random().toString(16).slice(2, 8)}`, // Unique client ID
-	// 		});
-
-	// 		client.on("connect", () => {
-	// 			console.log("Connected to MQTT broker");
-	// 		});
-
-	// 		client.on("error", (err) => {
-	// 			console.error("MQTT connection error:", err);
-	// 		});
-
-	// 		client.subscribe(`/gms/user/${userId}`, (err: any) => {
-	// 			if (!err) {
-	// 				console.log("Subscribed to the topic", `/gms/user/${userId}`);
-	// 			} else {
-	// 				console.error("Failed to connect to topic", err.message);
-	// 			}
-	// 		});
-
-	// 		client.on("message", (topic, payload) => {
-	// 			try {
-	// 				// Convert payload from Buffer to string
-	// 				const stringified = payload.toString();
-
-	// 				// Parse JSON
-	// 				const data = JSON.parse(stringified);
-
-	// 				// Destructure fields
-	// 				const { userId, deviceId, timestamp } = data;
-
-	// 				if (timestamp) {
-	// 					// Convert timestamp to Date object and then to a millisecond value
-	// 					const messageTime = new Date(timestamp).getTime();
-
-	// 					// Get the current time in milliseconds
-	// 					const currentTime = Date.now();
-
-	// 					// Check if timestamp is valid
-	// 					if (isNaN(messageTime)) {
-	// 						console.log("Invalid timestamp format.");
-	// 						return;
-	// 					}
-
-	// 					// Calculate the time difference in milliseconds
-	// 					const timeDifference = currentTime - messageTime;
-
-	// 					// Check if the message is less than 1 hour old
-	// 					if (timeDifference <= 3600000) {
-	// 						// 1 hour = 3600000 ms
-	// 						linkDeviceToUser({ userId, deviceId });
-	// 						console.log("Message processed successfully.");
-	// 					} else {
-	// 						console.log("Message is too old.");
-	// 					}
-	// 				} else {
-	// 					console.log("Timestamp missing from the message.");
-	// 				}
-	// 			} catch (error) {
-	// 				console.error("Failed to process message:", error);
-	// 			}
-	// 		});
-	// 	} catch (e) {
-	// 		console.error("Error establishing MQTT connection");
-	// 	}
-	// }, [userId]);
-
-	const connectToWifi = async (network: string, password = "") => {
-		const payload = {
-			ssid: network,
-			password,
-			userId: userId,
-			deviceId: uuidv4(),
-		};
-
-		console.log("Sending network details to embedded device");
-
-		try {
-			const response = await fetch("http://192.168.4.1/connect", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify(payload),
-			});
-
-			if (!response.ok) {
-				Alert.alert(
-					"Connection Error",
-					"Failed to connect to the WiFi network."
-				);
-			}
-
-			const result = await response.json();
-
-			if (result.message == "Success") {
-				return true;
-			} else {
-				Alert.alert(
-					"Connection Error",
-					result.message || "Failed to connect to the WiFi netowrk."
-				);
-				return false;
-			}
-
-			console.log("WiFi Connection Result: ", result.message);
-
-			linkDeviceToUser({ deviceId: payload.deviceId, userId: userId as any });
-		} catch (e) {
-			console.error(e);
-			return false;
-		}
-	};
-
 	const apConnection = async () => {
-		setSelectedMethod("AP Scan"); // Set the selected method to AP Scan
-		setCurrentStage(1); // Move to the connecting stage
-		setIsConnecting(true); // Show spinner
+		setSelectedMethod("AP Scan");
+		setCurrentStage(1);
+		setIsConnecting(true);
 
-		// Define the fallback IP
-		const fallBackAPIP = "192.168.4.1";
-
-		// Define a timeout duration in milliseconds
 		const timeoutDuration = 10000; // 10 seconds
 
 		// Create an AbortController
@@ -283,37 +77,28 @@ const AddDeviceScreen = () => {
 		}, timeoutDuration);
 
 		try {
-			console.log("About to hit the endpoint");
-			console.log("http://192.168.4.1/scanWifi");
-
-			// Perform the fetch request with the AbortController signal
 			const result = await fetch("http://192.168.4.1/scanWifi", {
 				method: "GET",
 				headers: {
 					"Content-Type": "application/json",
 				},
-				signal: controller.signal, // Pass the signal
+				signal: controller.signal,
 			});
 
-			// Clear the timeout if the request is successful
 			clearTimeout(timeout);
 
-			// Check for errors in the response
 			if (!result.ok) {
 				if (Platform.OS === "web") {
 					window.alert("Failed to connect to the device");
 				}
 				Alert.alert("Error", "Failed to connect to the device");
-				setIsConnecting(false); // Hide spinner
-				setCurrentStage(0); // Go back to options
+				setIsConnecting(false);
+				setCurrentStage(0);
 				return;
 			}
 
-			// Parse the JSON response
 			const response = await result.json();
-			console.log("Fetched WiFi Networks:", response);
 
-			// Process the response data
 			if (response.data && Array.isArray(response.data)) {
 				setWifiNetworks(response.data);
 				// Move back to the selection stage to show networks
@@ -323,7 +108,7 @@ const AddDeviceScreen = () => {
 				Alert.alert("Error", "Unexpected data format received.");
 				setCurrentStage(0);
 			}
-		} catch (error) {
+		} catch (error: any) {
 			console.log("Oops, an error occurred:", error);
 
 			// Check if the error is due to timeout
@@ -359,7 +144,7 @@ const AddDeviceScreen = () => {
 			setCurrentStage(1);
 			setIsConnecting(true);
 
-			const success = await connectToWifi(network);
+			// const success =await handlePasswordSubmit();
 
 			if (success) {
 				simulateConnection();
@@ -380,10 +165,9 @@ const AddDeviceScreen = () => {
 			ssid: selectedSecureNetwork.ssid,
 			password: wifiPassword,
 			userId,
-			deviceId: uuidv4(),
+			deviceId: deviceId,
+			brokerAddress: BrokerPort,
 		};
-
-		console.log("about to send a payload", payload);
 
 		try {
 			const response = await fetch(`http://192.168.4.1/connect`, {
@@ -394,8 +178,6 @@ const AddDeviceScreen = () => {
 				body: JSON.stringify(payload),
 			});
 
-			console.log(response);
-
 			if (!response.ok) {
 				Alert.alert(
 					"Connection Error",
@@ -404,19 +186,24 @@ const AddDeviceScreen = () => {
 				return;
 			}
 
-			console.log("got message back");
-
 			const result = await response.json();
-			console.log("WiFi Connection Result:", result);
 
-			// Assuming a successful connection returns a success message
-			if (result.status === "Success") {
+			setDeviceType(result.deviceType);
+
+			if (result.status === "Success" && result.deviceType) {
 				setIsPasswordModalVisible(false);
 				setWifiPassword("");
 				setSelectedNetwork(selectedSecureNetwork);
-				setCurrentStage(1); // Move to the connection stage
-				// Simulate connection process
-				linkDeviceToUser({ deviceId: payload.deviceId, userId: userId as any });
+				setCurrentStage(1);
+
+				// UserDeviceService.linkDeviceToUser({
+				// 	deviceId: payload.deviceId,
+				// 	userId: userId as any,
+				// 	deviceType: result.deviceType,
+				// });
+
+				console.log("defering linking for now, but the link is good to go");
+				setHasConnected(true);
 				simulateConnection();
 			} else {
 				Alert.alert(
@@ -442,12 +229,31 @@ const AddDeviceScreen = () => {
 		}, 2000); // Simulate a 2-second connection
 	};
 
+	const updateDeviceName = useCallback(async () => {
+		UserDeviceService.updateDevice({
+			device_id: deviceId,
+			deviceName,
+			status: "Online",
+		});
+	}, [userId, deviceId]);
+
 	// Handle device naming
 	const handleNameDevice = () => {
 		if (deviceName.trim() === "") {
 			Alert.alert("Validation Error", "Please enter a device name.");
 			return;
 		}
+
+		if (hasConnected) {
+			//we can infer that the IOT device has connected to the internet and has its UUId, time to attempt to store the DB information
+
+			console.log("about to link device to user");
+
+			console.log({ deviceId, deviceName, deviceType, userId });
+
+			linkDeviceToUser({ deviceId, deviceName, deviceType, userId });
+		}
+
 		// Simulate saving the device
 		Alert.alert("Success", `Device "${deviceName}" added successfully!`);
 		// Reset the process or navigate away
@@ -565,33 +371,14 @@ const AddDeviceScreen = () => {
 				return (
 					<View style={styles.namingContainer}>
 						<Text style={styles.statusText}>Assign a Name to Your Device</Text>
-						<TouchableOpacity
-							style={styles.nameInput}
-							onPress={() => {
-								// Implement actual input logic or navigation to a form
-								Alert.prompt(
-									"Device Name",
-									"Enter a name for your device:",
-									[
-										{
-											text: "Cancel",
-											style: "cancel",
-										},
-										{
-											text: "OK",
-											onPress: (text) => {
-												setDeviceName(text);
-											},
-										},
-									],
-									"plain-text"
-								);
-							}}
-						>
-							<Text style={styles.nameInputText}>
-								{deviceName || "Tap to enter device name"}
-							</Text>
-						</TouchableOpacity>
+						{/* Replaced TouchableOpacity and Alert.prompt with TextInput */}
+						<TextInput
+							style={styles.nameInputField}
+							placeholder="Enter device name"
+							value={deviceName}
+							onChangeText={setDeviceName}
+							placeholderTextColor="#888"
+						/>
 						<TouchableOpacity
 							style={[
 								styles.proceedButton,
@@ -779,7 +566,11 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 		alignItems: "center",
 	},
-	nameInput: {
+	/* 
+	   Replaced TouchableOpacity and Alert.prompt with TextInput
+	   Added a new style 'nameInputField' for the TextInput
+	*/
+	nameInputField: {
 		backgroundColor: "#FFFFFF",
 		borderRadius: 8,
 		width: "100%",
@@ -792,10 +583,8 @@ const styles = StyleSheet.create({
 		shadowOffset: { width: 0, height: 1 }, // iOS shadow
 		shadowOpacity: 0.1, // iOS shadow
 		shadowRadius: 2, // iOS shadow
-	},
-	nameInputText: {
-		color: "#888",
 		fontSize: 16,
+		color: "#333",
 	},
 	proceedButton: {
 		backgroundColor: "#71A12F",

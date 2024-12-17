@@ -21,6 +21,7 @@ const LoginScreen = () => {
 	const [password, setPassword] = useState("");
 	const [loading, setLoading] = useState(false);
 	const [rememberMe, setRememberMe] = useState(false); // Added state for checkbox
+	const [imageLoaded, setImageLoaded] = useState(false);
 
 	const handleLogin = async () => {
 		if (!email || !password) {
@@ -139,6 +140,15 @@ const LoginScreen = () => {
 					<Text style={styles.signupText}>Don't have an account? Sign Up</Text>
 				</TouchableOpacity>
 			</View>
+			<View style={styles.footerContainer}>
+				<Image
+					source={require("@/assets/images/ss-logo.png")}
+					style={styles.ssLogo}
+				></Image>
+				<Text style={styles.footerText}>
+					Powered by Sioux Steel {"\u00A9"} | v1.0.0{" "}
+				</Text>
+			</View>
 		</View>
 	);
 };
@@ -146,7 +156,8 @@ const LoginScreen = () => {
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
-		justifyContent: "center",
+		justifyContent: "flex-start",
+		paddingTop: Platform.OS === "web" ? 240 : 215,
 		alignItems: "center",
 		padding: 10, // Reduced padding for better fit
 		backgroundColor: "#F5F5F5", // Light grey background
@@ -167,7 +178,7 @@ const styles = StyleSheet.create({
 		marginBottom: 20, // Space between header and inputs
 	},
 	bannerImage: {
-		width: "95%", // Adjusted width for better fit
+		width: "95%",
 		height: 100, // Fixed height to maintain aspect ratio
 		resizeMode: "contain", // Ensures the entire image fits within the container without distortion
 		marginBottom: 0, // Space below the image
@@ -258,6 +269,27 @@ const styles = StyleSheet.create({
 		color: "#71A12F",
 		textDecorationLine: "underline",
 		fontSize: 14,
+	},
+	footerText: {
+		fontSize: 12,
+		color: "#888", // Light gray text
+		textAlign: "center",
+		marginTop: 15, // Space between Signup link and footer
+	},
+	ssLogo: {
+		width: 60, // Adjust the width to fit the logo
+		height: 60, // Adjust the height to match proportions
+		marginRight: 8, // Spacing between logo and text
+		resizeMode: "contain",
+		alignContent: "center",
+		justifyContent: "center",
+		marginTop: 15,
+	},
+	footerContainer: {
+		flexDirection: "row", // Horizontal layout
+		alignItems: "center", // Align items vertically centered
+		justifyContent: "center", // Center content horizontally
+		marginTop: 15, // Spacing above
 	},
 });
 

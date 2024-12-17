@@ -1,4 +1,5 @@
 import { getSupabaseClient } from "./supabaseClient";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const supabase = getSupabaseClient();
 

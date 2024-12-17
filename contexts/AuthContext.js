@@ -7,6 +7,7 @@ export const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
 	const [isLoggedIn, setIsLoggedIn] = useState(null);
 	const [user, setUser] = useState(null);
+	const [userId, setUserId] = useState(null);
 
 	// Login function using Supabase
 	const login = async (email, password) => {
@@ -17,9 +18,10 @@ export const AuthProvider = ({ children }) => {
 
 			if (token) {
 				await AsyncStorage.setItem("authToken", token);
+				await AsyncStorage.setItem("userId", user?.id); // Save userId to AsyncStorage
 				setIsLoggedIn(true);
-
-				setUser(user.user);
+				setUser(user);
+				setUserId(user?.id); // Set the userId from the returned user object
 			} else {
 				throw new Error("Invalid token");
 			}
@@ -34,8 +36,10 @@ export const AuthProvider = ({ children }) => {
 		try {
 			await AuthService.signOut();
 			await AsyncStorage.removeItem("authToken");
+			await AsyncStorage.removeItem("userId"); // Clear userId from AsyncStorage
 			setIsLoggedIn(false);
 			setUser(null);
+			setUserId(null); // Clear the userId in state
 		} catch (error) {
 			console.error("Logout error:", error.message);
 		}
@@ -46,16 +50,21 @@ export const AuthProvider = ({ children }) => {
 		const checkLoginStatus = async () => {
 			try {
 				const token = await AsyncStorage.getItem("authToken");
-				if (token) {
+				const storedUserId = await AsyncStorage.getItem("userId"); // Get the userId from AsyncStorage
+
+				if (token && storedUserId) {
 					const { user } = await AuthService.getCurrentUser(); // Fetch the current user
 					setIsLoggedIn(true);
 					setUser(user);
+					setUserId(storedUserId); // Set the userId from AsyncStorage
 				} else {
 					setIsLoggedIn(false);
+					setUserId(null);
 				}
 			} catch (error) {
 				console.error("Error checking login status:", error.message);
 				setIsLoggedIn(false);
+				setUserId(null);
 			}
 		};
 
@@ -63,7 +72,7 @@ export const AuthProvider = ({ children }) => {
 	}, []);
 
 	return (
-		<AuthContext.Provider value={{ isLoggedIn, user, login, logout }}>
+		<AuthContext.Provider value={{ isLoggedIn, user, userId, login, logout }}>
 			{children}
 		</AuthContext.Provider>
 	);
