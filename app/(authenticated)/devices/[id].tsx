@@ -1,8 +1,17 @@
 import React, { useCallback } from "react";
-import { View, Text, Image, StyleSheet, TouchableOpacity } from "react-native";
+import {
+	View,
+	Text,
+	Image,
+	StyleSheet,
+	TouchableOpacity,
+	SafeAreaView,
+	ScrollView,
+} from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import { UserDeviceService } from "@/services/userDevice/service";
+import BackButton from "@/components/BackButton";
 
 const DeviceScreen = () => {
 	const { deviceId } = useLocalSearchParams();
@@ -29,70 +38,78 @@ const DeviceScreen = () => {
 	const isSensor = mockDevice.deviceType === "Sensor";
 
 	return (
-		<View style={styles.container}>
-			{/* Device Header */}
-			<View style={styles.header}>
-				<Image
-					source={{ uri: mockDevice.devicePicture }}
-					style={styles.deviceImage}
-				/>
-				<View style={styles.deviceInfo}>
-					<Text style={styles.deviceName}>{mockDevice.deviceName}</Text>
-					<Text
-						style={[
-							styles.deviceStatus,
-							{ color: mockDevice.status === "Online" ? "green" : "red" },
-						]}
-					>
-						{mockDevice.status}
+		<SafeAreaView style={styles.container}>
+			<ScrollView contentContainerStyle={styles.scrollContent}>
+				<View>
+					<BackButton label="Devices"></BackButton>
+				</View>
+
+				{/* Device Header */}
+				<View style={styles.header}>
+					<Image
+						source={{ uri: mockDevice.devicePicture }}
+						style={styles.deviceImage}
+					/>
+					<View style={styles.deviceInfo}>
+						<Text style={styles.deviceName}>{mockDevice.deviceName}</Text>
+						<Text
+							style={[
+								styles.deviceStatus,
+								{ color: mockDevice.status === "Online" ? "green" : "red" },
+							]}
+						>
+							{mockDevice.status}
+						</Text>
+						<Text style={styles.deviceType}>Type: {mockDevice.deviceType}</Text>
+					</View>
+				</View>
+
+				{/* Last Communication Time */}
+				<View style={styles.lastCommunication}>
+					<MaterialIcons name="access-time" size={20} color="#555" />
+					<Text style={styles.lastCommText}>
+						Last Communication: {mockDevice.lastCommunicationTime}
 					</Text>
-					<Text style={styles.deviceType}>Type: {mockDevice.deviceType}</Text>
 				</View>
-			</View>
 
-			{/* Last Communication Time */}
-			<View style={styles.lastCommunication}>
-				<MaterialIcons name="access-time" size={20} color="#555" />
-				<Text style={styles.lastCommText}>
-					Last Communication: {mockDevice.lastCommunicationTime}
-				</Text>
-			</View>
-
-			{/* Device Specific Actions */}
-			{isRelay && (
-				<View style={styles.relayActions}>
-					<Text style={styles.sectionHeader}>Power Control</Text>
-					<TouchableOpacity
-						style={[
-							styles.powerButton,
-							mockDevice.powerState === "On" ? styles.powerOn : styles.powerOff,
-						]}
-					>
-						<Text style={styles.powerButtonText}>
-							{mockDevice.powerState === "On" ? "Turn Off" : "Turn On"}
-						</Text>
-					</TouchableOpacity>
-				</View>
-			)}
-
-			{isSensor && (
-				<View style={styles.sensorData}>
-					<Text style={styles.sectionHeader}>Recent Sensor Data</Text>
-					<View style={styles.sensorRow}>
-						<MaterialIcons name="thermostat" size={30} color="#FF5722" />
-						<Text style={styles.sensorValue}>
-							Temperature: {mockDevice.temperature}°C
-						</Text>
+				{/* Device Specific Actions */}
+				{isRelay && (
+					<View style={styles.relayActions}>
+						<Text style={styles.sectionHeader}>Power Control</Text>
+						<TouchableOpacity
+							style={[
+								styles.powerButton,
+								mockDevice.powerState === "On"
+									? styles.powerOn
+									: styles.powerOff,
+							]}
+						>
+							<Text style={styles.powerButtonText}>
+								{mockDevice.powerState === "On" ? "Turn Off" : "Turn On"}
+							</Text>
+						</TouchableOpacity>
 					</View>
-					<View style={styles.sensorRow}>
-						<FontAwesome5 name="water" size={30} color="#2196F3" />
-						<Text style={styles.sensorValue}>
-							Humidity: {mockDevice.humidity}%
-						</Text>
+				)}
+
+				{isSensor && (
+					<View style={styles.sensorData}>
+						<Text style={styles.sectionHeader}>Recent Sensor Data</Text>
+						<View style={styles.sensorRow}>
+							<MaterialIcons name="thermostat" size={30} color="#FF5722" />
+							<Text style={styles.sensorValue}>
+								Temperature: {mockDevice.temperature}°C
+							</Text>
+						</View>
+						<View style={styles.sensorRow}>
+							<FontAwesome5 name="water" size={30} color="#2196F3" />
+							<Text style={styles.sensorValue}>
+								Humidity: {mockDevice.humidity}%
+							</Text>
+						</View>
 					</View>
-				</View>
-			)}
-		</View>
+				)}
+			</ScrollView>
+		</SafeAreaView>
 	);
 };
 
@@ -101,7 +118,10 @@ const styles = StyleSheet.create({
 	container: {
 		flex: 1,
 		backgroundColor: "#F5F5F5",
-		padding: 20,
+	},
+	scrollContent: {
+		padding: 16,
+		paddingBottom: 30, // Extra padding to ensure content is above the tab bar
 	},
 	header: {
 		flexDirection: "row",

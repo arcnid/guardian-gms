@@ -3,6 +3,7 @@ import React, { useEffect, useContext } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { AuthContext } from "../contexts/AuthContext"; // Adjust the path if necessary
+import { ThemeContext } from "@/contexts/ThemeContext";
 
 const Index = () => {
 	const router = useRouter();

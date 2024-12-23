@@ -7,6 +7,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 
 const AuthenticatedLayout = () => {
 	const authContext = useContext(AuthContext);
+	const router = useRouter();
 
 	// Error handling to ensure AuthContext is provided
 	if (!authContext) {
@@ -14,7 +15,6 @@ const AuthenticatedLayout = () => {
 	}
 
 	const { isLoggedIn } = authContext;
-	const router = useRouter();
 
 	useEffect(() => {
 		// Redirect to login if user is not authenticated
@@ -76,6 +76,14 @@ const AuthenticatedLayout = () => {
 						/>
 					),
 				}}
+				listeners={({ navigation }) => ({
+					tabPress: (e) => {
+						// Prevent default behavior
+						e.preventDefault();
+						// Navigate to the /devices route, resetting the stack
+						router.replace("/dashboard");
+					},
+				})}
 			/>
 
 			{/* Locations Tab */}
@@ -93,7 +101,7 @@ const AuthenticatedLayout = () => {
 				}}
 			/>
 
-			{/* Devices Tab */}
+			{/* Devices Tab with tabPress Listener */}
 			<Tabs.Screen
 				name="devices"
 				options={{
@@ -106,6 +114,14 @@ const AuthenticatedLayout = () => {
 						/>
 					),
 				}}
+				listeners={({ navigation }) => ({
+					tabPress: (e) => {
+						// Prevent default behavior
+						e.preventDefault();
+						// Navigate to the /devices route, resetting the stack
+						router.replace("/devices");
+					},
+				})}
 			/>
 
 			{/* Settings Tab */}

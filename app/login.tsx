@@ -1,3 +1,4 @@
+// app/login.js (or wherever your LoginScreen is located)
 import React, { useState, useContext } from "react";
 import {
 	View,
@@ -144,7 +145,7 @@ const LoginScreen = () => {
 				<Image
 					source={require("@/assets/images/ss-logo.png")}
 					style={styles.ssLogo}
-				></Image>
+				/>
 				<Text style={styles.footerText}>
 					Powered by Sioux Steel {"\u00A9"} | v1.0.0{" "}
 				</Text>
@@ -160,18 +161,14 @@ const styles = StyleSheet.create({
 		paddingTop: Platform.OS === "web" ? 240 : 215,
 		alignItems: "center",
 		padding: 10, // Reduced padding for better fit
-		backgroundColor: "#F5F5F5", // Light grey background
+		backgroundColor: "#fff", // Changed to white for seamless blend
 	},
 	card: {
 		width: "90%",
 		padding: 20,
 		backgroundColor: "#fff",
 		borderRadius: 10,
-		elevation: 3,
-		shadowColor: "#000",
-		shadowOffset: { width: 0, height: 2 },
-		shadowOpacity: 0.2,
-		shadowRadius: 4,
+		// Removed elevation and shadow properties for seamless look
 	},
 	header: {
 		alignItems: "center",
@@ -290,6 +287,16 @@ const styles = StyleSheet.create({
 		alignItems: "center", // Align items vertically centered
 		justifyContent: "center", // Center content horizontally
 		marginTop: 15, // Spacing above
+	},
+	errorContainer: {
+		padding: 16,
+		backgroundColor: "#F8D7DA",
+		borderRadius: 8,
+		margin: 16,
+	},
+	errorText: {
+		color: "#721C24",
+		textAlign: "center",
 	},
 });
 

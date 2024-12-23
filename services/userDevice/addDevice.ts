@@ -75,23 +75,20 @@ export const linkDeviceToUser = async ({
 
 	// Retry logic parameters
 	let attempts = 0;
-	const maxAttempts = 10;
+	const maxAttempts = 15;
 	const baseRetryDelay = 5000; //number of seconds
 
 	// Helper function to check internet connectivity
 	const checkInternetConnection = async (): Promise<boolean> => {
 		try {
 			const state = await NetInfo.fetch();
-			if (state.isConnected && state.isInternetReachable) {
-				if (Platform.OS === "web") {
-					// On web, skip additional connectivity checks to avoid CORS issues
-					return true;
-				} else {
-					// On native platforms, `isInternetReachable` is sufficient
-					return true;
-				}
+			if (Platform.OS === "web") {
+				// On web, rely only on `isConnected`
+				return state.isConnected ?? false;
+			} else {
+				// On native platforms, use both checks
+				return (state.isConnected && state.isInternetReachable) ?? false;
 			}
-			return false;
 		} catch (error) {
 			console.error("Error checking internet connection:", error);
 			return false;

@@ -4,6 +4,7 @@ import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { Slot } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "../contexts/AuthContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { useAssets } from "expo-asset";
 
 const RootLayout = () => {
@@ -21,11 +22,13 @@ const RootLayout = () => {
 	}
 
 	return (
-		<SafeAreaProvider>
-			<AuthProvider>
-				<Slot />
-			</AuthProvider>
-		</SafeAreaProvider>
+		<ThemeProvider>
+			<SafeAreaProvider>
+				<AuthProvider>
+					<Slot />
+				</AuthProvider>
+			</SafeAreaProvider>
+		</ThemeProvider>
 	);
 };
 

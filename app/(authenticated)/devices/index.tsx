@@ -75,7 +75,7 @@ const DevicesScreen = () => {
 	const handleManageDevice = (deviceId: string) => {
 		console.log("Managing device with ID:", deviceId);
 		// Navigate to a device management screen
-		router.push(`/devices/manage/${deviceId}`);
+		router.push(`/devices/${deviceId}`);
 	};
 
 	// Handle pull-to-refresh
