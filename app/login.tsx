@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
 		flexDirection: "row", // Horizontal layout
 		alignItems: "center", // Align items vertically centered
 		justifyContent: "center", // Center content horizontally
-		marginTop: 15, // Spacing above
+		marginTop: 150, // Spacing above
 	},
 	errorContainer: {
 		padding: 16,
