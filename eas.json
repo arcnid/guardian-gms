@@ -5,17 +5,33 @@
 	},
 	"build": {
 		"ios": {
-			"distribution": "internal"
+			"distribution": "internal",
+			"env": {
+				"EXPO_USE_MODULAR_HEADERS": "1",
+				"COCOAPODS_VERSION": "1.12.0"
+			}
 		},
 		"development": {
 			"developmentClient": true,
-			"distribution": "internal"
+			"distribution": "internal",
+			"env": {
+				"EXPO_USE_MODULAR_HEADERS": "1",
+				"COCOAPODS_VERSION": "1.12.0"
+			}
 		},
 		"preview": {
-			"distribution": "internal"
+			"distribution": "internal",
+			"env": {
+				"EXPO_USE_MODULAR_HEADERS": "1",
+				"COCOAPODS_VERSION": "1.12.0"
+			}
 		},
 		"production": {
-			"autoIncrement": true
+			"autoIncrement": true,
+			"env": {
+				"EXPO_USE_MODULAR_HEADERS": "1",
+				"COCOAPODS_VERSION": "1.12.0"
+			}
 		}
 	},
 	"submit": {
