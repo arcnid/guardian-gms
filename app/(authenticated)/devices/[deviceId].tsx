@@ -1,3 +1,5 @@
+// components/DeviceScreen.tsx
+
 import React, { useCallback, useEffect, useState } from "react";
 import {
 	View,
@@ -40,6 +42,28 @@ const DeviceScreen = () => {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [logs, setLogs] = useState<LogEntry[]>([]); // Define the type for logs
+	const [latestTempHumid, setLatestTempHumid] = useState<any>(null);
+
+	const getLatestTempHumid = useCallback(async () => {
+		if (!deviceId) {
+			console.log("device Id not found");
+			return;
+		} // Prevent fetching logs if deviceId is not available
+
+		try {
+			const fetchedLogs = await UserDeviceService.getLatestTemp(
+				deviceId as string
+			);
+			console.log("Fetched latest temps:", fetchedLogs);
+
+			setLatestTempHumid(fetchedLogs[0]);
+
+			console.log("testing temps");
+		} catch (e) {
+			console.error("Error fetching recent logs:", e);
+			throw new Error("Error fetching recent logs.");
+		}
+	}, [deviceId]);
 
 	// Fetch device information
 	const getDeviceInfo = useCallback(async () => {
@@ -85,6 +109,14 @@ const DeviceScreen = () => {
 		getRecentLogs();
 	}, [getRecentLogs]);
 
+	useEffect(() => {
+		getLatestTempHumid();
+
+		console.log("yo");
+
+		console.log(latestTempHumid);
+	}, [getLatestTempHumid]);
+
 	// Handle loading state
 	if (loading) {
 		return (
@@ -115,6 +147,8 @@ const DeviceScreen = () => {
 	// Determine device type
 	const isRelay = deviceData.device_type.toLowerCase() === "relay";
 	const isSensor = deviceData.device_type.toLowerCase() === "sensor";
+
+	console.log("Look out for this", deviceId);
 
 	return (
 		<SafeAreaView style={styles.container}>
@@ -204,9 +238,12 @@ const DeviceScreen = () => {
 
 				{isSensor && (
 					<>
-						<RecentSensorData deviceData={deviceData} />
-						<SensorChart logs={logs} deviceId={deviceId as any} />{" "}
-						{/* Add the SensorChart here */}
+						<RecentSensorData
+							temp={latestTempHumid?.temp_sensor_reading}
+							humid={latestTempHumid?.humid_sensor_reading}
+						/>
+						<SensorChart logs={logs} deviceId={deviceId as any} />
+						{/* Removed the {" "} to prevent stray string error */}
 					</>
 				)}
 			</ScrollView>

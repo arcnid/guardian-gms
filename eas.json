@@ -4,34 +4,15 @@
 		"appVersionSource": "remote"
 	},
 	"build": {
-		"ios": {
-			"distribution": "internal",
-			"env": {
-				"EXPO_USE_MODULAR_HEADERS": "1",
-				"COCOAPODS_VERSION": "1.12.0"
-			}
-		},
 		"development": {
 			"developmentClient": true,
-			"distribution": "internal",
-			"env": {
-				"EXPO_USE_MODULAR_HEADERS": "1",
-				"COCOAPODS_VERSION": "1.12.0"
-			}
+			"distribution": "internal"
 		},
 		"preview": {
-			"distribution": "internal",
-			"env": {
-				"EXPO_USE_MODULAR_HEADERS": "1",
-				"COCOAPODS_VERSION": "1.12.0"
-			}
+			"distribution": "internal"
 		},
 		"production": {
-			"autoIncrement": true,
-			"env": {
-				"EXPO_USE_MODULAR_HEADERS": "1",
-				"COCOAPODS_VERSION": "1.12.0"
-			}
+			"autoIncrement": true
 		}
 	},
 	"submit": {

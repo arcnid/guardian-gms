@@ -7,100 +7,130 @@ import {
 	StyleSheet,
 	Dimensions,
 	TouchableOpacity,
-	ActivityIndicator,
 } from "react-native";
 import { LineChart } from "react-native-chart-kit";
+import {} from "victory-native";
 import { useFonts } from "expo-font";
-import { UserDeviceService } from "@/services/userDevice/service"; // Ensure correct path
+import { DateTime } from "luxon";
 
-// Define the log entry interface
-interface LogEntry {
-	id: number;
-	created_at: string;
-	temp_sensor_reading: number;
-	humid_sensor_reading: number;
-	// Other fields are omitted as they're not used in the chart
-}
+import { LogEntry } from "@/types"; // Or define in this file
+import { useDeviceLogs } from "@/hooks/useDeviceLogs"; // Our custom hook
 
-// Define the props for SensorChart
 interface SensorChartProps {
-	logs: LogEntry[];
 	deviceId: string;
 }
 
-export const SensorChart: React.FC<SensorChartProps> = ({
-	logs: initialLogs,
-	deviceId,
-}) => {
+export const SensorChart: React.FC<SensorChartProps> = ({ deviceId }) => {
 	// Load custom font
 	const [fontsLoaded] = useFonts({
 		GeistMedium: require("@/fonts/Geist-Medium.ttf"),
 	});
 
-	// State for logs, selected metric, timeframe, loading, and error
-	const [logs, setLogs] = useState<LogEntry[]>(initialLogs);
+	// State for selected metric & timeframe
 	const [selectedMetric, setSelectedMetric] = useState<
 		"Temperature" | "Humidity"
 	>("Temperature");
 	const [timeframe, setTimeframe] = useState<string>("1D");
-	const [loading, setLoading] = useState<boolean>(false);
-	const [error, setError] = useState<string | null>(null);
 
-	// Function to map SensorChart timeframe to API option
-	const mapTimeframeToOption = (label: string): string => {
-		switch (label) {
+	// Fetch logs (cached) via our custom hook
+	const {
+		data: logs,
+		fromDate,
+		toDate,
+		loading,
+		error,
+		refetch,
+	} = useDeviceLogs(deviceId, timeframe);
+
+	// Convert fromDate and toDate to DateTime objects
+	const fromDateTime = fromDate ? DateTime.fromISO(fromDate) : null;
+	const toDateTime = toDate ? DateTime.fromISO(toDate) : DateTime.utc();
+
+	// Helper function to format labels based on timeframe
+	const formatLabel = (date: Date) => {
+		const dt = DateTime.fromJSDate(date);
+		switch (timeframe) {
 			case "1D":
-				return "1D";
+				// For 1 Day, show labels at specific hours (e.g., every 4 hours)
+				return dt.toFormat("HH:mm");
 			case "1W":
-				return "1W";
+				// For 1 Week, show day names (e.g., Mon, Wed, Fri, Sun)
+				return dt.toFormat("ccc"); // 'ccc' for abbreviated weekday
 			case "1M":
-				return "1M";
+				// For 1 Month, show dates (e.g., 11/01, 11/15, 11/30)
+				return dt.toFormat("MM/dd");
 			case "1Y":
-				return "1Y";
+				// For 1 Year, show month names (e.g., Jan, Mar, May)
+				return dt.toFormat("LLL"); // 'LLL' for abbreviated month
 			case "MAX":
-				return "ALL"; // Map "MAX" to "ALL"
+				// For MAX, show years (e.g., 2020, 2021, ...)
+				return dt.toFormat("yyyy");
 			default:
-				return "1D"; // Default to "1D" if unknown
+				return "";
 		}
 	};
 
-	// Function to fetch logs based on timeframe
-	const fetchLogs = async (selectedTimeframe: string) => {
-		setLoading(true);
-		setError(null);
-		try {
-			const option = mapTimeframeToOption(selectedTimeframe);
-			const response = await UserDeviceService.getDeviceLogs({
-				deviceId,
-				option,
-			});
-			// Assuming response is an array of logs
-			if (Array.isArray(response)) {
-				setLogs(response);
-				setTimeframe(selectedTimeframe);
-			} else {
-				throw new Error("Invalid data format received from API.");
+	// Helper function to check and insert a dummy data point at the start if necessary
+	const processLogs = (sortedLogs: LogEntry[]) => {
+		const completeLogs = [...sortedLogs];
+
+		if (fromDateTime) {
+			const startOfWindow = fromDateTime.toUTC();
+			const firstLogDateTime =
+				sortedLogs.length > 0
+					? DateTime.fromISO(sortedLogs[0].created_at).toUTC()
+					: null;
+
+			// Check if the first log is at the start of the window
+			if (!firstLogDateTime || firstLogDateTime > startOfWindow) {
+				// Insert dummy data point at the start
+				const dummyLog: LogEntry = {
+					id: -1, // Negative ID to indicate dummy
+					created_at: startOfWindow.toISO(),
+					temp_sensor_reading: 0,
+					humid_sensor_reading: 0,
+				};
+				completeLogs.unshift(dummyLog);
 			}
-		} catch (err) {
-			console.error("Error fetching device logs:", err);
-			setError("Failed to load data. Please try again.");
-		} finally {
-			setLoading(false);
 		}
+
+		return completeLogs;
 	};
 
-	// Prepare data for the selected metric
-	const data = useMemo(() => {
+	// Prepare data for chart
+	const chartData = useMemo(() => {
 		if (!logs || logs.length === 0) {
+			// If no logs, display a single dummy data point at the start of the window
+			if (!fromDateTime || !toDateTime) {
+				return {
+					labels: [],
+					datasets: [
+						{
+							data: [],
+							color: (opacity = 1) =>
+								selectedMetric === "Temperature"
+									? `rgba(255, 87, 34, ${opacity})`
+									: `rgba(33, 150, 243, ${opacity})`,
+							strokeWidth: 3,
+						},
+					],
+					legend: [
+						selectedMetric === "Temperature"
+							? "Temperature (°C)"
+							: "Humidity (%)",
+					],
+				};
+			}
+
 			return {
-				labels: [],
+				labels: [formatLabel(toDateTime.toJSDate())],
 				datasets: [
 					{
-						data: [],
+						data: [0], // Dummy data point
 						color: (opacity = 1) =>
 							selectedMetric === "Temperature"
-								? `rgba(255, 87, 34, ${opacity})` // Orange for Temperature
-								: `rgba(33, 150, 243, ${opacity})`, // Blue for Humidity
+								? `rgba(255, 87, 34, ${opacity})`
+								: `rgba(33, 150, 243, ${opacity})`,
 						strokeWidth: 3,
 					},
 				],
@@ -112,25 +142,30 @@ export const SensorChart: React.FC<SensorChartProps> = ({
 			};
 		}
 
-		// Sort logs in ascending order based on created_at
+		// Sort logs by date ascending
 		const sortedLogs = [...logs].sort(
 			(a, b) =>
 				new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
 		);
 
-		// Debugging: Log the sorted logs
-		console.log("Sorted Logs:", sortedLogs);
+		// Insert dummy data point at the start if necessary
+		const completeLogs = processLogs(sortedLogs);
 
-		// Validate and extract data points
 		const labels: string[] = [];
 		const dataPoints: number[] = [];
 
-		sortedLogs.forEach((log) => {
+		completeLogs.forEach((log) => {
 			const date = new Date(log.created_at);
-			const label = date.toLocaleTimeString([], {
-				hour: "2-digit",
-				minute: "2-digit",
-			});
+			let label = "";
+
+			if (log.id === -1) {
+				// Dummy data point
+				label = formatLabel(date);
+			} else {
+				// Real data point
+				label = formatLabel(date);
+			}
+
 			labels.push(label);
 
 			const reading =
@@ -138,18 +173,8 @@ export const SensorChart: React.FC<SensorChartProps> = ({
 					? Number(log.temp_sensor_reading)
 					: Number(log.humid_sensor_reading);
 
-			// Validate reading
-			if (isNaN(reading)) {
-				console.warn(`Invalid reading for log ID ${log.id}:`, reading);
-				dataPoints.push(0); // Assign a default value or handle as needed
-			} else {
-				dataPoints.push(reading);
-			}
+			dataPoints.push(isNaN(reading) ? 0 : reading);
 		});
-
-		// Debugging: Log the chart data
-		console.log("Chart Labels:", labels);
-		console.log("Chart Data Points:", dataPoints);
 
 		return {
 			labels,
@@ -158,8 +183,8 @@ export const SensorChart: React.FC<SensorChartProps> = ({
 					data: dataPoints,
 					color: (opacity = 1) =>
 						selectedMetric === "Temperature"
-							? `rgba(255, 87, 34, ${opacity})` // Orange for Temperature
-							: `rgba(33, 150, 243, ${opacity})`, // Blue for Humidity
+							? `rgba(255, 87, 34, ${opacity})`
+							: `rgba(33, 150, 243, ${opacity})`,
 					strokeWidth: 3,
 				},
 			],
@@ -167,161 +192,148 @@ export const SensorChart: React.FC<SensorChartProps> = ({
 				selectedMetric === "Temperature" ? "Temperature (°C)" : "Humidity (%)",
 			],
 		};
-	}, [logs, selectedMetric]);
+	}, [logs, selectedMetric, timeframe, fromDate, toDate]);
 
-	// Render Content Based on State
-	const renderContent = () => {
-		if (loading) {
-			return (
-				<View style={styles.loadingContainer}>
-					<ActivityIndicator size="large" color="#4CAF50" />
-					<Text style={styles.loadingText}>Loading Chart...</Text>
-				</View>
-			);
-		}
-
-		if (error) {
-			return (
-				<View style={styles.errorContainer}>
+	return (
+		<View style={styles.container}>
+			{/* Inline error (don’t hide the chart) */}
+			{error && (
+				<View style={styles.errorInline}>
 					<Text style={styles.errorText}>{error}</Text>
 					<TouchableOpacity
 						style={styles.retryButton}
-						onPress={() => fetchLogs(timeframe)}
+						onPress={() => refetch()} // triggers fetch again
 						accessibilityLabel="Retry fetching logs"
 					>
 						<Text style={styles.retryButtonText}>Retry</Text>
 					</TouchableOpacity>
 				</View>
-			);
-		}
+			)}
 
-		if (!fontsLoaded) {
-			return (
-				<View style={styles.loadingContainer}>
-					<ActivityIndicator size="small" color="#4CAF50" />
-					<Text style={styles.loadingText}>Loading Fonts...</Text>
-				</View>
-			);
-		}
-
-		// Additional Debugging: Log the data being passed to LineChart
-		console.log("Chart Data:", data);
-
-		return (
-			<>
-				{/* Header with Toggle */}
-				<View style={styles.toggleContainer}>
-					<TouchableOpacity
+			{/* Metric Toggle */}
+			<View style={styles.toggleContainer}>
+				<TouchableOpacity
+					style={[
+						styles.toggleButton,
+						selectedMetric === "Temperature" && styles.toggleButtonActive,
+					]}
+					onPress={() => setSelectedMetric("Temperature")}
+					accessibilityLabel="Toggle to Temperature metric"
+				>
+					<Text
 						style={[
-							styles.toggleButton,
-							selectedMetric === "Temperature" && styles.toggleButtonActive,
+							styles.toggleButtonText,
+							selectedMetric === "Temperature" && styles.toggleButtonTextActive,
 						]}
-						onPress={() => setSelectedMetric("Temperature")}
-						accessibilityLabel="Toggle to Temperature metric"
+					>
+						Temperature
+					</Text>
+				</TouchableOpacity>
+				<TouchableOpacity
+					style={[
+						styles.toggleButton,
+						selectedMetric === "Humidity" && styles.toggleButtonActive,
+					]}
+					onPress={() => setSelectedMetric("Humidity")}
+					accessibilityLabel="Toggle to Humidity metric"
+				>
+					<Text
+						style={[
+							styles.toggleButtonText,
+							selectedMetric === "Humidity" && styles.toggleButtonTextActive,
+						]}
+					>
+						Humidity
+					</Text>
+				</TouchableOpacity>
+			</View>
+
+			<Text style={styles.title}>
+				{selectedMetric === "Temperature"
+					? "Temperature Over Time (°C)"
+					: "Humidity Over Time (%)"}
+			</Text>
+
+			{/* Chart always rendered (shows empty if no data) */}
+			<View style={styles.chartWrapper}>
+				<LineChart
+					data={chartData}
+					/*
+                        We set the chart width to
+                        (windowWidth - 32), matching the container's horizontal paddings.
+                        This ensures the chart fits snugly inside the container width.
+                    */
+					width={Dimensions.get("window").width - 32}
+					height={300}
+					yAxisSuffix={selectedMetric === "Temperature" ? "°C" : "%"}
+					yAxisInterval={1}
+					withDots={false}
+					withShadow={false}
+					withVerticalLines={false}
+					withHorizontalLines={true}
+					chartConfig={{
+						backgroundColor: "#FFFFFF",
+						backgroundGradientFrom: "#FFFFFF",
+						backgroundGradientTo: "#FFFFFF",
+						decimalPlaces: 1,
+						color: (opacity = 1) => `rgba(33, 33, 33, ${opacity})`,
+						labelColor: (opacity = 1) => `rgba(97, 97, 97, ${opacity})`,
+						style: {
+							borderRadius: 16,
+						},
+						propsForDots: {
+							r: "4",
+							strokeWidth: "2",
+							stroke: "#4CAF50",
+						},
+						propsForLabels: {
+							fontFamily: fontsLoaded ? "GeistMedium" : "System",
+							fontSize: 10, // Reduced font size for better fit
+						},
+						// If label rotation is supported, you can uncomment the next line
+						// labelRotation: -45,
+					}}
+					bezier
+					style={styles.chart}
+				/>
+			</View>
+
+			{/* Timeframe Buttons */}
+			<View style={styles.buttonContainer}>
+				{["1D", "1W", "1M", "1Y", "MAX"].map((label) => (
+					<TouchableOpacity
+						key={label}
+						style={[
+							styles.button,
+							timeframe === label ? styles.buttonActive : null,
+						]}
+						onPress={() => setTimeframe(label)}
+						disabled={loading}
+						accessibilityLabel={`Select ${label} timeframe`}
 					>
 						<Text
 							style={[
-								styles.toggleButtonText,
-								selectedMetric === "Temperature" &&
-									styles.toggleButtonTextActive,
+								styles.buttonText,
+								timeframe === label ? styles.buttonTextActive : null,
 							]}
 						>
-							Temperature
+							{label}
 						</Text>
 					</TouchableOpacity>
-					<TouchableOpacity
-						style={[
-							styles.toggleButton,
-							selectedMetric === "Humidity" && styles.toggleButtonActive,
-						]}
-						onPress={() => setSelectedMetric("Humidity")}
-						accessibilityLabel="Toggle to Humidity metric"
-					>
-						<Text
-							style={[
-								styles.toggleButtonText,
-								selectedMetric === "Humidity" && styles.toggleButtonTextActive,
-							]}
-						>
-							Humidity
-						</Text>
-					</TouchableOpacity>
-				</View>
+				))}
+			</View>
 
-				{/* Chart Section */}
-				<Text style={styles.title}>
-					{selectedMetric === "Temperature"
-						? "Temperature Over Time (°C)"
-						: "Humidity Over Time (%)"}
+			{/* Loading Indicator */}
+			{(!fontsLoaded || loading) && (
+				<Text style={styles.fontLoadingText}>
+					{fontsLoaded ? "Loading data..." : "Fonts still loading..."}
 				</Text>
-				<View style={styles.chartWrapper}>
-					<LineChart
-						data={data}
-						width={Dimensions.get("window").width - 32}
-						height={250}
-						yAxisSuffix={selectedMetric === "Temperature" ? "°C" : "%"}
-						yAxisInterval={1}
-						withDots={false}
-						withShadow={false}
-						withVerticalLines={false}
-						withHorizontalLines={true}
-						chartConfig={{
-							backgroundColor: "#FFFFFF",
-							backgroundGradientFrom: "#FFFFFF",
-							backgroundGradientTo: "#FFFFFF",
-							decimalPlaces: 1,
-							color: (opacity = 1) => `rgba(33, 33, 33, ${opacity})`,
-							labelColor: (opacity = 1) => `rgba(97, 97, 97, ${opacity})`,
-							style: {
-								borderRadius: 16,
-							},
-							propsForDots: {
-								r: "4",
-								strokeWidth: "2",
-								stroke: "#4CAF50",
-							},
-							propsForLabels: {
-								fontFamily: "GeistMedium",
-								fontSize: 12,
-							},
-						}}
-						bezier
-						style={styles.chart}
-					/>
-				</View>
-
-				{/* Timeframe Buttons */}
-				<View style={styles.buttonContainer}>
-					{["1D", "1W", "1M", "1Y", "MAX"].map((label) => (
-						<TouchableOpacity
-							key={label}
-							style={[
-								styles.button,
-								timeframe === label ? styles.buttonActive : null,
-							]}
-							onPress={() => fetchLogs(label)}
-							disabled={loading} // Disable when loading
-							accessibilityLabel={`Select ${label} timeframe`}
-						>
-							<Text
-								style={[
-									styles.buttonText,
-									timeframe === label ? styles.buttonTextActive : null,
-								]}
-							>
-								{label}
-							</Text>
-						</TouchableOpacity>
-					))}
-				</View>
-			</>
-		);
-	};
-
-	return <View style={styles.container}>{renderContent()}</View>;
+			)}
+		</View>
+	);
 };
 
-// Styles
+// Styles only, no logic changes
 const styles = StyleSheet.create({
 	container: {
 		marginTop: 20,
@@ -329,7 +341,6 @@ const styles = StyleSheet.create({
 		backgroundColor: "#FFF",
 		borderRadius: 10,
 		elevation: 3,
-		overflow: "hidden",
 	},
 	title: {
 		fontSize: 18,
@@ -367,6 +378,9 @@ const styles = StyleSheet.create({
 	chartWrapper: {
 		marginVertical: 8,
 		borderRadius: 16,
+		overflow: "hidden",
+		paddingRight: 20,
+		paddingLeft: 20,
 	},
 	chart: {
 		borderRadius: 16,
@@ -396,33 +410,21 @@ const styles = StyleSheet.create({
 	buttonTextActive: {
 		color: "#FFF",
 	},
-	loadingContainer: {
+	errorInline: {
+		alignItems: "center",
 		flexDirection: "row",
-		alignItems: "center",
 		justifyContent: "center",
-		padding: 20,
-	},
-	loadingText: {
-		marginLeft: 10,
-		fontSize: 16,
-		color: "#4CAF50",
-		fontFamily: "GeistMedium",
-	},
-	errorContainer: {
-		alignItems: "center",
-		justifyContent: "center",
-		padding: 20,
+		marginBottom: 10,
 	},
 	errorText: {
 		color: "#D32F2F",
-		fontSize: 16,
-		marginBottom: 10,
-		textAlign: "center",
+		fontSize: 14,
 		fontFamily: "GeistMedium",
+		marginRight: 10,
 	},
 	retryButton: {
-		paddingVertical: 8,
-		paddingHorizontal: 16,
+		paddingVertical: 6,
+		paddingHorizontal: 12,
 		backgroundColor: "#4CAF50",
 		borderRadius: 8,
 	},
@@ -430,5 +432,12 @@ const styles = StyleSheet.create({
 		color: "#FFF",
 		fontSize: 14,
 		fontFamily: "GeistMedium",
+	},
+	fontLoadingText: {
+		marginTop: 8,
+		color: "#999",
+		fontSize: 12,
+		fontFamily: "GeistMedium",
+		textAlign: "center",
 	},
 });

@@ -11,24 +11,22 @@ import {
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 
 export const RecentSensorData = ({
-	deviceData,
+	temp,
+	humid,
 }: {
-	deviceData: { temperature: any; humidity: any };
+	temp: number;
+	humid: number;
 }) => {
 	return (
 		<View style={styles.sensorData}>
 			<Text style={styles.sectionHeader}>Recent Sensor Data</Text>
 			<View style={styles.sensorRow}>
 				<MaterialIcons name="thermostat" size={30} color="#FF5722" />
-				<Text style={styles.sensorValue}>
-					Temperature: {deviceData.temperature || "N/A"}°C
-				</Text>
+				<Text style={styles.sensorValue}>Temperature: {temp || "N/A"}°C</Text>
 			</View>
 			<View style={styles.sensorRow}>
 				<FontAwesome5 name="water" size={30} color="#2196F3" />
-				<Text style={styles.sensorValue}>
-					Humidity: {deviceData.humidity || "N/A"}%
-				</Text>
+				<Text style={styles.sensorValue}>Humidity: {humid || "N/A"}%</Text>
 			</View>
 		</View>
 	);
