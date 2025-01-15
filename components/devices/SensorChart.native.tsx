@@ -7,10 +7,8 @@ import {
 	ActivityIndicator,
 	TouchableOpacity,
 } from "react-native";
-import { LineGraph } from "react-native-graph";
+import { LineChart } from "react-native-chart-kit";
 import { useDeviceLogs } from "@/hooks/useDeviceLogs";
-import { SelectionDot } from "@/components/devices/CustomSelectionDot";
-import { AxisLabel } from "@/components/devices/AxisLabel";
 
 const { width } = Dimensions.get("window");
 
@@ -19,6 +17,15 @@ export interface GraphPoint {
 	value: number;
 	date: Date;
 }
+
+const chartConfig = {
+	backgroundGradientFrom: "#fff", // Set to white
+	backgroundGradientTo: "#fff", // Set to white
+	color: (opacity = 1) => `rgba(26, 255, 146, ${opacity})`,
+	strokeWidth: 2,
+	barPercentage: 0.5,
+	useShadowColorFromDataset: false,
+};
 
 export const SensorChart = ({ deviceId }: { deviceId: string }) => {
 	// State to manage the selected timeframe and active tab (temp/humidity)
@@ -38,15 +45,15 @@ export const SensorChart = ({ deviceId }: { deviceId: string }) => {
 			date: new Date(log.created_at),
 		})) || [];
 
-	// Find the min and max points
-	const minPoint = graphData.reduce(
-		(min, p) => (p.value < min.value ? p : min),
-		graphData[0] || { value: Infinity, date: new Date() }
-	);
-	const maxPoint = graphData.reduce(
-		(max, p) => (p.value > max.value ? p : max),
-		graphData[0] || { value: -Infinity, date: new Date() }
-	);
+	// Prepare data for the chart
+	const chartData = {
+		labels: graphData.map((point) => point.date.toLocaleDateString()),
+		datasets: [
+			{
+				data: graphData.map((point) => point.value),
+			},
+		],
+	};
 
 	// Conditional rendering for loading, error, or no data
 	let content = null;
@@ -86,44 +93,13 @@ export const SensorChart = ({ deviceId }: { deviceId: string }) => {
 							: "Humidity Over Time (%)"}
 					</Text>
 				</View>
-				<LineGraph
+				<LineChart
+					data={chartData}
+					width={width - 40}
+					height={220}
+					chartConfig={chartConfig}
+					bezier
 					style={styles.chart}
-					points={graphData}
-					color="#4CAF50"
-					animated={true}
-					selectionDotShadowColor="#4CAF50"
-					enablePanGesture={true}
-					SelectionDot={SelectionDot}
-					enableFadeInMask={true}
-					enableIndicator={true}
-					onGestureStart={() => console.log("Gesture Start")}
-					onGestureEnd={() => console.log("Gesture End")}
-					horizontalPadding={30}
-					indicatorPulsating={true}
-					verticalPadding={5}
-					gradientFillColors={
-						activeTab === "temp" ? ["#FFCCCC", "#FFF"] : ["#CCE5FF", "#FFF"]
-					}
-					TopAxisLabel={() => (
-						<AxisLabel
-							value={maxPoint.value}
-							index={graphData.findIndex(
-								(point) => point.value === maxPoint.value
-							)}
-							arrayLength={graphData.length}
-							metricType={activeTab === "temp" ? "C" : "%"}
-						/>
-					)}
-					BottomAxisLabel={() => (
-						<AxisLabel
-							value={minPoint.value}
-							index={graphData.findIndex(
-								(point) => point.value === minPoint.value
-							)}
-							arrayLength={graphData.length}
-							metricType={activeTab === "temp" ? "C" : "%"}
-						/>
-					)}
 				/>
 			</View>
 		);
@@ -196,7 +172,7 @@ export const SensorChart = ({ deviceId }: { deviceId: string }) => {
 const styles = StyleSheet.create({
 	outerContainer: {
 		flex: 1,
-		backgroundColor: "#fff", // Light background for the app
+		backgroundColor: "#fff",
 		marginTop: 20,
 		borderRadius: 10,
 		paddingTop: 10,
@@ -214,7 +190,6 @@ const styles = StyleSheet.create({
 	title: {
 		fontSize: 18,
 		fontWeight: "bold",
-		fontFamily: "GeistMedium",
 		textAlign: "center",
 		marginBottom: 10,
 		color: "#333",
@@ -237,7 +212,6 @@ const styles = StyleSheet.create({
 		backgroundColor: "#4CAF50",
 	},
 	toggleButtonText: {
-		fontFamily: "GeistMedium",
 		fontSize: 14,
 		color: "#333",
 	},
@@ -251,7 +225,6 @@ const styles = StyleSheet.create({
 	},
 	chart: {
 		borderRadius: 16,
-		height: 300,
 	},
 	buttonContainer: {
 		flexDirection: "row",
@@ -271,7 +244,6 @@ const styles = StyleSheet.create({
 		backgroundColor: "#4CAF50",
 	},
 	buttonText: {
-		fontFamily: "GeistMedium",
 		fontSize: 14,
 		color: "#333",
 	},
@@ -281,7 +253,6 @@ const styles = StyleSheet.create({
 	errorText: {
 		color: "#D32F2F",
 		fontSize: 14,
-		fontFamily: "GeistMedium",
 		marginBottom: 10,
 	},
 	retryButton: {
@@ -293,13 +264,11 @@ const styles = StyleSheet.create({
 	retryButtonText: {
 		color: "#FFF",
 		fontSize: 14,
-		fontFamily: "GeistMedium",
 	},
 	fontLoadingText: {
 		marginTop: 8,
 		color: "#999",
 		fontSize: 12,
-		fontFamily: "GeistMedium",
 		textAlign: "center",
 	},
 });

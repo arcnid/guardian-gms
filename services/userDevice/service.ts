@@ -197,7 +197,7 @@ export const UserDeviceService = {
 		console.log("Fetched Data:", data);
 
 		// Reduce the data for performance (adjust the bucket size as needed)
-		const reducedSet = largestTriangleThreeBuckets(data, 50); // Adjust bucket size as needed
+		const reducedSet = largestTriangleThreeBuckets(data, 10); // Adjust bucket size as needed
 
 		console.log("Reduced set:", reducedSet);
 

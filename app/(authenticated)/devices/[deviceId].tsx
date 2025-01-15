@@ -16,6 +16,7 @@ import { UserDeviceService } from "@/services/userDevice/service";
 import BackButton from "@/components/BackButton";
 import { RecentSensorData } from "@/components/devices/RecentSensorData"; // Keeping as per your request
 import { SensorChart } from "@/components/devices/SensorChart"; // Import the new SensorChart component
+import { RelayControls } from "@/components/devices/RelayControls"; // Import the new RelayControls component
 
 interface DeviceData {
 	device_id: string;
@@ -194,47 +195,7 @@ const DeviceScreen = () => {
 				</View>
 
 				{/* Device Specific Actions */}
-				{isRelay && (
-					<View style={styles.relayActions}>
-						<Text style={styles.sectionHeader}>Power Control</Text>
-						<TouchableOpacity
-							style={[
-								styles.powerButton,
-								deviceData.status === "Online"
-									? styles.powerOn
-									: styles.powerOff,
-							]}
-							onPress={async () => {
-								try {
-									// Determine the new status
-									const newStatus =
-										deviceData.status === "Online" ? "Offline" : "Online";
-									// Update the device status via the service
-									await UserDeviceService.updateDeviceStatus(
-										deviceId as string,
-										newStatus
-									);
-									// Update local state to reflect the change
-									setDeviceData((prevData) => ({
-										...prevData,
-										status: newStatus,
-									}));
-									console.log(
-										`Device ${deviceId} status updated to ${newStatus}`
-									);
-								} catch (error) {
-									console.error("Error toggling power state:", error);
-									// Optionally, set an error state here
-									setError("Failed to update device status.");
-								}
-							}}
-						>
-							<Text style={styles.powerButtonText}>
-								{deviceData.status === "Online" ? "Turn Off" : "Turn On"}
-							</Text>
-						</TouchableOpacity>
-					</View>
-				)}
+				{isRelay && <RelayControls deviceId={deviceId}></RelayControls>}
 
 				{isSensor && (
 					<>
