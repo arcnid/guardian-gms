@@ -6,6 +6,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "../contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { useAssets } from "expo-asset";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import GenericTouchable from "react-native-gesture-handler/lib/typescript/components/touchables/GenericTouchable";
 
 const RootLayout = () => {
 	const [assets] = useAssets([
@@ -22,13 +24,15 @@ const RootLayout = () => {
 	}
 
 	return (
-		<ThemeProvider>
-			<SafeAreaProvider>
-				<AuthProvider>
-					<Slot />
-				</AuthProvider>
-			</SafeAreaProvider>
-		</ThemeProvider>
+		<GestureHandlerRootView style={{ flex: 1 }}>
+			<ThemeProvider>
+				<SafeAreaProvider>
+					<AuthProvider>
+						<Slot />
+					</AuthProvider>
+				</SafeAreaProvider>
+			</ThemeProvider>
+		</GestureHandlerRootView>
 	);
 };
 

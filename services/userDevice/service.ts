@@ -153,7 +153,7 @@ export const UserDeviceService = {
 
 		switch (option) {
 			case "1D":
-				fromDate = now.startOf("day").toISO(); // Start of today
+				fromDate = now.minus({ days: 1 }).toISO(); // Start of today
 				break;
 			case "1W":
 				fromDate = now.startOf("week").toISO(); // Start of the current week
