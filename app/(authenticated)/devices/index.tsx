@@ -1,11 +1,5 @@
 // app/(authenticated)/devices.js
-import React, {
-	useState,
-	useContext,
-	useEffect,
-	useCallback,
-	useLayoutEffect,
-} from "react";
+import React, { useState, useContext, useCallback } from "react";
 import {
 	StyleSheet,
 	View,
@@ -15,7 +9,7 @@ import {
 	SafeAreaView,
 	Image,
 	RefreshControl,
-	ActivityIndicator, // For loading indicator
+	ActivityIndicator,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -33,61 +27,93 @@ interface Device {
 
 const DevicesScreen = () => {
 	const router = useRouter();
-	const [devices, setDevices] = useState<Device[]>([]); // Initialize as empty
+	const [devices, setDevices] = useState<Device[]>([]);
 	const [refreshing, setRefreshing] = useState(false);
-	const [loading, setLoading] = useState(true); // Loading state
-	const [error, setError] = useState<string | null>(null); // Error state
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
 
 	const { userId } = useContext(AuthContext);
 
-	// Function to fetch device list
-	const getDeviceList = useCallback(async () => {
+	// Combined function to fetch devices and their images
+	const fetchDevicesAndImages = useCallback(async () => {
 		try {
-			setError(null); // Reset any previous errors
-			const data = await UserDeviceService.getDevicesByUser(userId);
-			console.log("Fetched Devices:", data);
+			setError(null);
+			setLoading(true);
 
-			if (!Array.isArray(data)) {
-				console.error("Expected data to be an array but got:", typeof data);
+			// Fetch devices associated with the user
+			const deviceData = await UserDeviceService.getDevicesByUser(userId);
+			console.log("Fetched Devices:", deviceData);
+
+			if (!Array.isArray(deviceData)) {
+				console.error(
+					"Expected data to be an array but got:",
+					typeof deviceData
+				);
 				setError("Invalid data format received.");
 				setDevices([]);
 				return;
 			}
 
-			setDevices(data);
+			if (deviceData.length === 0) {
+				setDevices([]);
+				return;
+			}
+
+			// Extract device IDs to fetch images
+			const deviceIdList = deviceData.map((device) => device.device_id);
+			console.log("Device IDs for image fetching:", deviceIdList);
+
+			// Fetch images for the devices
+			const devicesWithImages =
+				await UserDeviceService.getDevicesWithImage(deviceIdList);
+			console.log("Devices with Images Retrieved:", devicesWithImages);
+
+			// Create a map of device_id to image URL
+			const imageMap = new Map<string, string>();
+			devicesWithImages.forEach((device) => {
+				imageMap.set(device.device_id, device.image);
+			});
+
+			// Merge images into the device data
+			const updatedDevices = deviceData.map((device) => ({
+				...device,
+				image: imageMap.get(device.device_id) || device.image || "",
+			}));
+
+			console.log("Updated Devices with Images:", updatedDevices);
+			setDevices(updatedDevices);
 		} catch (err) {
-			console.error("Error fetching devices:", err);
+			console.error("Error fetching devices or images:", err);
 			setError("Failed to fetch devices. Please try again.");
+			setDevices([]);
 		} finally {
 			setLoading(false);
 			setRefreshing(false);
 		}
 	}, [userId]);
 
-	// Fetch data on component mount and when userId changes
+	// Fetch devices and images on component mount and when userId changes
 	useFocusEffect(
 		useCallback(() => {
-			getDeviceList();
-		}, [])
+			fetchDevicesAndImages();
+		}, [fetchDevicesAndImages])
 	);
 
 	// Handle device management navigation
 	const handleManageDevice = (deviceId: string) => {
 		console.log("Managing device with ID:", deviceId);
-		// Navigate to a device management screen
 		router.push(`/devices/${deviceId}`);
 	};
 
 	// Handle pull-to-refresh
 	const onRefresh = () => {
 		setRefreshing(true);
-		getDeviceList();
+		fetchDevicesAndImages();
 	};
 
 	// Render each device item
 	const renderDevice = ({ item }: { item: Device }) => {
-		// Determine the display name
-		console.log(item);
+		console.log("Rendering device:", item);
 		const displayName = item.device_name ? item.device_name : item.device_id;
 
 		return (
@@ -97,7 +123,13 @@ const DevicesScreen = () => {
 				activeOpacity={0.8}
 			>
 				<View style={styles.deviceInfo}>
-					<Image source={{ uri: item.image }} style={styles.deviceImage} />
+					{item.image ? (
+						<Image source={{ uri: item.image }} style={styles.deviceImage} />
+					) : (
+						<View style={[styles.deviceImage, styles.placeholderImage]}>
+							<MaterialIcons name="device-hub" size={24} color="#FFFFFF" />
+						</View>
+					)}
 					<View style={styles.deviceTextContainer}>
 						<Text style={styles.deviceName}>{displayName}</Text>
 						<View style={styles.statusContainer}>
@@ -169,19 +201,7 @@ const DevicesScreen = () => {
 			{/* Device List */}
 			<FlatList
 				data={devices}
-				keyExtractor={(item) => {
-					if (item.device_id) {
-						return item.device_id.toString();
-					} else if (item.device_id) {
-						// Corrected from item.id to item.device_id
-						// Assuming Supabase provides a unique 'id' field
-						return item.device_id.toString();
-					} else {
-						// Fallback to index if no unique identifier is available
-						// Note: Using index as a key is not recommended for dynamic lists
-						return Math.random().toString();
-					}
-				}}
+				keyExtractor={(item) => item.device_id}
 				renderItem={renderDevice}
 				contentContainerStyle={styles.listContent}
 				ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -206,7 +226,7 @@ export default DevicesScreen;
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
-		backgroundColor: "#F5F5F5", // Match the layout background
+		backgroundColor: "#F5F5F5",
 	},
 	headerContainer: {
 		flexDirection: "row",
@@ -232,21 +252,19 @@ const styles = StyleSheet.create({
 	},
 	listContent: {
 		padding: 16,
-		paddingBottom: 30, // Extra padding to ensure content is above the tab bar
+		paddingBottom: 30,
 	},
 	deviceCard: {
-		backgroundColor: "#FFFFFF", // White card background
-		borderRadius: 10, // Consistent border radius
+		backgroundColor: "#FFFFFF",
+		borderRadius: 10,
 		padding: 15,
 		flexDirection: "row",
 		alignItems: "center",
 		justifyContent: "space-between",
-		// Shadow for iOS
 		shadowColor: "#000",
 		shadowOffset: { width: 0, height: 2 },
 		shadowOpacity: 0.1,
 		shadowRadius: 3,
-		// Elevation for Android
 		elevation: 3,
 	},
 	deviceInfo: {
@@ -261,13 +279,18 @@ const styles = StyleSheet.create({
 		backgroundColor: "#E0E0E0",
 		marginRight: 15,
 	},
+	placeholderImage: {
+		backgroundColor: "#BDBDBD",
+		justifyContent: "center",
+		alignItems: "center",
+	},
 	deviceTextContainer: {
 		flex: 1,
 	},
 	deviceName: {
 		fontSize: 18,
 		fontWeight: "bold",
-		color: "#333", // Darker text color for better readability
+		color: "#333",
 	},
 	statusContainer: {
 		flexDirection: "row",
@@ -284,7 +307,7 @@ const styles = StyleSheet.create({
 	emptyContainer: {
 		alignItems: "center",
 		marginTop: 50,
-		paddingHorizontal: 20, // Ensure text doesn't touch the edges
+		paddingHorizontal: 20,
 	},
 	emptyText: {
 		fontSize: 16,

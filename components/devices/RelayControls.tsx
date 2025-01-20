@@ -6,12 +6,11 @@ import {
 	StyleSheet,
 	TouchableOpacity,
 } from "react-native";
-import { getMqttClient } from "@/utils/mqttClient"; // Web-specific MQTT client
+import { sendService } from "@/services/sendService";
 import { AuthContext } from "@/contexts/AuthContext";
 
 export const RelayControls = ({ deviceId }: { deviceId: string }) => {
 	const [isRelayOn, setIsRelayOn] = useState(true); // State to track relay power
-	const [mqttClient, setMqttClient] = useState<any>(null); // MQTT client instance
 	const { userId } = useContext(AuthContext);
 
 	if (!userId || !deviceId) {
@@ -21,67 +20,15 @@ export const RelayControls = ({ deviceId }: { deviceId: string }) => {
 	const topic = `/gms/${userId}/${deviceId}`;
 	console.log("topic", topic);
 
-	// Initialize the MQTT client based on the platform
-	useEffect(() => {
-		let client: any;
-
-		const initializeClient = async () => {
-			if (Platform.OS === "web") {
-				// Web: Use the existing web MQTT client
-				client = getMqttClient({
-					brokerUrl: "ws://54.172.46.137:9001", // WebSocket URL
-					topic,
-					onMessageCallback: (topic: string, payload: string) => {
-						console.log("Message received on web:", topic, payload);
-					},
-				});
-			} else {
-				// Native: Use the native MQTT client
-				console.log("trying native");
-				client = await getMqttClient({
-					brokerUrl: "ws://54.172.46.137:9001", // WebSocket URL for native
-					topic,
-					onMessageCallback: (topic: string, payload: string) => {
-						console.log("Message received on native:", topic, payload);
-					},
-				});
-			}
-
-			setMqttClient(client);
-		};
-
-		initializeClient();
-
-		// Cleanup function to disconnect and clean up the MQTT client
-		return () => {
-			if (client) {
-				if (Platform.OS === "web") {
-					client.unsubscribe(topic);
-					client.end();
-				} else {
-					client.close();
-				}
-			}
-		};
-	}, [deviceId, topic]);
-
 	// Function to publish MQTT messages
 	const sendMessage = useCallback(
 		(state: boolean) => {
 			console.log("Sending message:", state);
 			console.log("Topic:", topic);
 
-			if (mqttClient) {
-				if (Platform.OS === "web") {
-					mqttClient.publish(topic, JSON.stringify({ power: state }));
-				} else {
-					console.log("about to publish on mobile");
-
-					mqttClient.publish(JSON.stringify({ topic, power: state }));
-				}
-			}
+			sendService.sendPowerCommand({ deviceId, state, userId });
 		},
-		[mqttClient, topic]
+		[userId, deviceId]
 	);
 
 	// Turn the relay ON

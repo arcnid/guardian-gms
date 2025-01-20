@@ -9,14 +9,16 @@ import {
 	TouchableOpacity,
 	SafeAreaView,
 	ScrollView,
+	ActivityIndicator,
 } from "react-native";
-import { useLocalSearchParams } from "expo-router"; // Keeping as per your request
+import { useLocalSearchParams } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import { UserDeviceService } from "@/services/userDevice/service";
 import BackButton from "@/components/BackButton";
-import { RecentSensorData } from "@/components/devices/RecentSensorData"; // Keeping as per your request
-import { SensorChart } from "@/components/devices/SensorChart"; // Import the new SensorChart component
-import { RelayControls } from "@/components/devices/RelayControls"; // Import the new RelayControls component
+import { RecentSensorData } from "@/components/devices/RecentSensorData";
+import { SensorChart } from "@/components/devices/SensorChart";
+import { RelayControls } from "@/components/devices/RelayControls";
 
 interface DeviceData {
 	device_id: string;
@@ -42,31 +44,95 @@ const DeviceScreen = () => {
 	const [deviceData, setDeviceData] = useState<DeviceData>();
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [logs, setLogs] = useState<LogEntry[]>([]); // Define the type for logs
+	const [logs, setLogs] = useState<LogEntry[]>([]);
 	const [latestTempHumid, setLatestTempHumid] = useState<any>(null);
+	const [deviceImageUri, setDeviceImageUri] = useState<string | null>(null);
+
+	// Image upload state
+	const [uploadingImage, setUploadingImage] = useState(false);
+
+	// Function to handle image selection and upload
+	const handleImageUpload = async () => {
+		try {
+			// Request media library permissions if not already granted
+			const permissionResult =
+				await ImagePicker.requestMediaLibraryPermissionsAsync();
+			if (permissionResult.status !== "granted") {
+				alert("Permission to access media library is required!");
+				return;
+			}
+
+			const result = await ImagePicker.launchImageLibraryAsync({
+				mediaTypes: ImagePicker.MediaTypeOptions.Images,
+				allowsEditing: true,
+				aspect: [1, 1],
+				quality: 0.5,
+			});
+
+			if (!result.canceled && result.assets?.length > 0) {
+				// Get the selected image URI
+				const imageUri = result.assets[0].uri;
+				console.log("Selected image URI:", imageUri);
+
+				// Fetch the image file as a Blob
+				const response = await fetch(imageUri);
+				const imageData = await response.blob();
+				console.log("Fetched image blob:", imageData);
+
+				setUploadingImage(true);
+
+				// Upload the image Blob to the backend
+				await UserDeviceService.updateDeviceImage(
+					deviceId as string,
+					imageData
+				);
+				console.log("Image uploaded successfully.");
+
+				// Fetch the updated image URL from the backend
+				const updatedImageUrl = await UserDeviceService.getDeviceImageUrl(
+					deviceId as string
+				);
+				console.log("Updated image URL:", updatedImageUrl);
+
+				// Update the deviceImageUri state with the new image URL
+				setDeviceImageUri(updatedImageUrl);
+
+				// Optionally, update deviceData.devicePicture if needed
+				setDeviceData((prev) =>
+					prev ? { ...prev, devicePicture: updatedImageUrl } : prev
+				);
+			}
+		} catch (e) {
+			console.error("Error uploading image:", e);
+			alert("Failed to upload image. Please try again.");
+		} finally {
+			setUploadingImage(false);
+		}
+	};
 
 	const getLatestTempHumid = useCallback(async () => {
 		if (!deviceId) {
-			console.log("device Id not found");
+			console.log("Device ID not found");
 			return;
-		} // Prevent fetching logs if deviceId is not available
+		}
 
 		try {
 			const fetchedLogs = await UserDeviceService.getLatestTemp(
 				deviceId as string
 			);
-			console.log("Fetched latest temps:", fetchedLogs);
-
-			setLatestTempHumid(fetchedLogs[0]);
-
-			console.log("testing temps");
+			if (fetchedLogs && fetchedLogs.length > 0) {
+				setLatestTempHumid(fetchedLogs[0]);
+				console.log("Latest temp and humid data:", fetchedLogs[0]);
+			} else {
+				setLatestTempHumid(null);
+				console.log("No temp and humid data found.");
+			}
 		} catch (e) {
 			console.error("Error fetching recent logs:", e);
-			throw new Error("Error fetching recent logs.");
+			setError("Error fetching recent logs.");
 		}
 	}, [deviceId]);
 
-	// Fetch device information
 	const getDeviceInfo = useCallback(async () => {
 		if (!deviceId) {
 			setError("Device ID not found");
@@ -76,8 +142,20 @@ const DeviceScreen = () => {
 
 		try {
 			const data = await UserDeviceService.getDevice(deviceId as string);
-			console.log("Fetched device data:", data);
 			setDeviceData(data);
+			console.log("Device data fetched:", data);
+
+			// Fetch and set the existing image URI if available
+			if (data) {
+				const url = await UserDeviceService.getDeviceImageUrl(
+					deviceId as string
+				);
+				console.log("Setting device image URI:", url);
+				setDeviceImageUri(url as any);
+			} else {
+				setDeviceImageUri(null);
+				console.log("No device picture available.");
+			}
 		} catch (e) {
 			console.error("Error fetching device data:", e);
 			setError("Error fetching device data.");
@@ -86,16 +164,15 @@ const DeviceScreen = () => {
 		}
 	}, [deviceId]);
 
-	// Fetch recent logs
 	const getRecentLogs = useCallback(async () => {
-		if (!deviceId) return; // Prevent fetching logs if deviceId is not available
+		if (!deviceId) return;
 
 		try {
 			const fetchedLogs = await UserDeviceService.getRecentLogs(
 				deviceId as string
 			);
-			console.log("Fetched recent logs:", fetchedLogs);
 			setLogs(fetchedLogs);
+			console.log("Recent logs fetched:", fetchedLogs);
 		} catch (e) {
 			console.error("Error fetching recent logs:", e);
 			setError("Error fetching recent logs.");
@@ -112,13 +189,17 @@ const DeviceScreen = () => {
 
 	useEffect(() => {
 		getLatestTempHumid();
-
-		console.log("yo");
-
-		console.log(latestTempHumid);
 	}, [getLatestTempHumid]);
 
-	// Handle loading state
+	// Debugging: Log deviceImageUri on render
+	useEffect(() => {
+		console.log("Current deviceImageUri:", deviceImageUri);
+
+		if (deviceImageUri == null) {
+			//dont even try to show image
+		}
+	}, [deviceImageUri]);
+
 	if (loading) {
 		return (
 			<SafeAreaView style={styles.container}>
@@ -127,7 +208,6 @@ const DeviceScreen = () => {
 		);
 	}
 
-	// Handle error state
 	if (error) {
 		return (
 			<SafeAreaView style={styles.container}>
@@ -136,7 +216,6 @@ const DeviceScreen = () => {
 		);
 	}
 
-	// Handle case where deviceData is not found
 	if (!deviceData) {
 		return (
 			<SafeAreaView style={styles.container}>
@@ -145,11 +224,8 @@ const DeviceScreen = () => {
 		);
 	}
 
-	// Determine device type
 	const isRelay = deviceData.device_type.toLowerCase() === "relay";
 	const isSensor = deviceData.device_type.toLowerCase() === "sensor";
-
-	console.log("Look out for this", deviceId);
 
 	return (
 		<SafeAreaView style={styles.container}>
@@ -160,19 +236,43 @@ const DeviceScreen = () => {
 
 				{/* Device Header */}
 				<View style={styles.header}>
-					<Image
-						source={{
-							uri:
-								deviceData.devicePicture || "https://via.placeholder.com/150",
-						}}
-						style={styles.deviceImage}
-					/>
+					<TouchableOpacity onPress={handleImageUpload} activeOpacity={0.7}>
+						{deviceImageUri ? (
+							<Image
+								source={{
+									uri: deviceImageUri,
+								}}
+								style={styles.deviceImage}
+								resizeMode="cover"
+								onError={(error) => {
+									console.error(
+										"Error loading image:",
+										error.nativeEvent.error
+									);
+									// Optionally, set a fallback image or remove the URI
+									setDeviceImageUri(null);
+								}}
+							/>
+						) : (
+							<View style={styles.addImageContainer}>
+								{uploadingImage ? (
+									<ActivityIndicator size="small" color="#71A12F" />
+								) : (
+									<>
+										<FontAwesome5 name="camera" size={24} color="#555" />
+									</>
+								)}
+							</View>
+						)}
+					</TouchableOpacity>
 					<View style={styles.deviceInfo}>
 						<Text style={styles.deviceName}>{deviceData.device_name}</Text>
 						<Text
 							style={[
 								styles.deviceStatus,
-								{ color: deviceData.status === "Online" ? "green" : "red" },
+								{
+									color: deviceData.status === "Online" ? "#4CAF50" : "#F44336",
+								},
 							]}
 						>
 							{deviceData.status || "Unknown"}
@@ -185,7 +285,6 @@ const DeviceScreen = () => {
 					</View>
 				</View>
 
-				{/* Last Communication Time */}
 				<View style={styles.lastCommunication}>
 					<MaterialIcons name="access-time" size={20} color="#555" />
 					<Text style={styles.lastCommText}>
@@ -194,7 +293,6 @@ const DeviceScreen = () => {
 					</Text>
 				</View>
 
-				{/* Device Specific Actions */}
 				{isRelay && <RelayControls deviceId={deviceId}></RelayControls>}
 
 				{isSensor && (
@@ -204,7 +302,6 @@ const DeviceScreen = () => {
 							humid={latestTempHumid?.humid_sensor_reading}
 						/>
 						<SensorChart logs={logs} deviceId={deviceId as any} />
-						{/* Removed the {" "} to prevent stray string error */}
 					</>
 				)}
 			</ScrollView>
@@ -212,7 +309,6 @@ const DeviceScreen = () => {
 	);
 };
 
-// Styles (with additions for relay power button states and error/loading texts)
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
@@ -220,7 +316,7 @@ const styles = StyleSheet.create({
 	},
 	scrollContent: {
 		padding: 16,
-		paddingBottom: 30, // Extra padding to ensure content is above the tab bar
+		paddingBottom: 30,
 	},
 	header: {
 		flexDirection: "row",
@@ -236,6 +332,22 @@ const styles = StyleSheet.create({
 		height: 80,
 		borderRadius: 40,
 		marginRight: 15,
+	},
+	addImageContainer: {
+		width: 80,
+		height: 80,
+		borderRadius: 40,
+		backgroundColor: "#E0E0E0",
+		justifyContent: "center",
+		alignItems: "center",
+		marginRight: 15,
+		flexDirection: "column",
+	},
+	addImageText: {
+		color: "#555",
+		fontSize: 12,
+		textAlign: "center",
+		marginTop: 5,
 	},
 	deviceInfo: {
 		flex: 1,
@@ -262,50 +374,6 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		color: "#555",
 		marginLeft: 5,
-	},
-	sectionHeader: {
-		fontSize: 18,
-		fontWeight: "bold",
-		color: "#333",
-		marginBottom: 10,
-	},
-	relayActions: {
-		alignItems: "center",
-		marginBottom: 30,
-	},
-	powerButton: {
-		paddingVertical: 20, // Increased size for a big button
-		paddingHorizontal: 40,
-		borderRadius: 10,
-		alignItems: "center",
-		marginTop: 10,
-	},
-	powerOn: {
-		backgroundColor: "#4CAF50", // Green for "On"
-	},
-	powerOff: {
-		backgroundColor: "#F44336", // Red for "Off"
-	},
-	powerButtonText: {
-		color: "#FFF",
-		fontSize: 18,
-		fontWeight: "bold",
-	},
-	sensorData: {
-		backgroundColor: "#FFF",
-		padding: 15,
-		borderRadius: 10,
-		elevation: 3,
-	},
-	sensorRow: {
-		flexDirection: "row",
-		alignItems: "center",
-		marginBottom: 10,
-	},
-	sensorValue: {
-		fontSize: 16,
-		color: "#333",
-		marginLeft: 10,
 	},
 	loadingText: {
 		fontSize: 18,

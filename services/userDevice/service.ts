@@ -227,4 +227,185 @@ export const UserDeviceService = {
 
 		return data;
 	},
+
+	updateDeviceImage: async (deviceId: string, imageData: Blob) => {
+		const client = getSupabaseClient();
+		try {
+			// Step 1: Upload the image to the `images` bucket
+			const fileName = `device_${deviceId}.jpg`;
+
+			const { data: uploadData, error: uploadError } = await client.storage
+				.from("Images") // Your bucket name
+				.upload(fileName, imageData, {
+					cacheControl: "3600",
+					upsert: true,
+				});
+
+			console.log("upload Data", uploadData);
+
+			if (uploadError) {
+				console.error("Error uploading image:", uploadError.message);
+				throw new Error("Image upload failed");
+			}
+
+			// Get the public URL of the uploaded image
+			const { data: publicUrlData, error: publicUrlError } = client.storage
+				.from("Images")
+				.getPublicUrl(fileName);
+
+			console.log("publicURl", publicUrlData.publicUrl);
+
+			if (publicUrlError) {
+				console.error("Error getting public URL:", publicUrlError.message);
+				throw new Error("Failed to get public URL for the image");
+			}
+
+			const imageUrl = publicUrlData.publicUrl;
+
+			// Step 2: Check if the device profile exists
+			const { data: profileData, error: profileError } = await client
+				.from("deviceprofiles")
+				.select("*")
+				.eq("device_id", deviceId)
+				.single();
+
+			if (profileError && profileError.code !== "PGRST116") {
+				// Code "PGRST116" means no rows found; handle other errors
+				console.error("Error checking device profile:", profileError.message);
+				throw new Error("Error checking device profile");
+			}
+
+			console.log("no rows found");
+
+			// Step 3: Update or Insert the device profile record
+			if (profileData) {
+				// Profile exists, update the `image_url` field
+				const { error: updateError } = await client
+					.from("deviceprofiles")
+					.update({ image_url: imageUrl })
+					.eq("device_id", deviceId);
+
+				if (updateError) {
+					console.error("Error updating device profile:", updateError.message);
+					throw new Error("Error updating device profile");
+				}
+			} else {
+				console.log(deviceId);
+				// Profile doesn't exist, create a new record
+				const { error: insertError } = await client
+					.from("deviceprofiles")
+					.insert({
+						device_id: deviceId,
+						image_url: imageUrl,
+					});
+
+				if (insertError) {
+					console.error(
+						"Error inserting new device profile:",
+						insertError.message
+					);
+					throw new Error("Error inserting new device profile");
+				}
+			}
+
+			return imageUrl; // Return the uploaded image URL
+		} catch (err) {
+			console.error("Error in updateDeviceImage:", err);
+			throw err;
+		}
+	},
+
+	getDeviceImageUrl: async (deviceId: string) => {
+		const client = getSupabaseClient();
+		console.log("getting image");
+
+		const fileName = `device_${deviceId}.jpg`;
+		try {
+			const response = await client.storage
+				.from("Images")
+				.getPublicUrl(fileName);
+
+			const url = response.data.publicUrl;
+
+			console.log("url", url);
+
+			return url;
+		} catch (e) {
+			console.error(e);
+		}
+	},
+
+	getDevicesWithImage: async (deviceList: Array<string>) => {
+		//list of deviceIDs
+		const client = getSupabaseClient();
+
+		//go through each record
+
+		//look to see if there is a record inside of 'deviceprofiles' and if it has a image_url set, if it does, grab it and add it to the return list
+
+		console.log("gonna look for profile record for ", deviceList);
+
+		try {
+			// Step 1: Fetch device profiles to check for image_url
+			const { data: profiles, error: profileError } = await client
+				.from("deviceprofiles")
+				.select("*")
+				.in("device_id", [...deviceList]);
+
+			console.log("response, ", profiles);
+
+			console.log("profile Error", profileError?.code);
+
+			if (profileError) {
+				console.log("not found");
+				console.error("Error fetching device profiles:", profileError);
+				throw profileError;
+			}
+
+			console.log("Fetched device profiles:", profiles);
+
+			// Step 2: Create a map of device_id to image_url
+			const deviceImageMap = new Map<string, string>();
+			profiles?.forEach((profile) => {
+				if (profile.image_url) {
+					deviceImageMap.set(profile.device_id, profile.image_url);
+				}
+			});
+
+			// Step 3: Fetch devices data
+			const { data: devices, error } = await client
+				.from("deviceprofiles")
+				.select("*")
+				.in("device_id", deviceList);
+
+			if (error) {
+				console.log("res", error);
+				console.error("Error fetching devices:", error);
+			}
+
+			console.log("Fetched devices:", devices);
+
+			// Step 4: Enrich devices with image URLs
+			const devicesWithImages = await Promise.all(
+				devices?.map(async (device) => {
+					if (deviceImageMap.has(device.device_id)) {
+						const imageUrl = await UserDeviceService.getDeviceImageUrl(
+							device.device_id
+						);
+						return { ...device, image: imageUrl };
+					}
+					// If no image exists, set image to empty string or a placeholder URL
+					return { ...device, image: "" };
+				}) || []
+			);
+
+			console.log("Devices with images:", devicesWithImages);
+
+			return devicesWithImages;
+		} catch (error) {
+			console.error("Error in getDevicesWithImage:", error);
+			return [];
+		}
+		//
+	},
 };
