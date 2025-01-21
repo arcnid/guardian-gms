@@ -33,6 +33,7 @@
     "expo-constants": "~17.0.3",
     "expo-dev-client": "~5.0.8",
     "expo-font": "~13.0.1",
+    "expo-image-picker": "~16.0.4",
     "expo-linking": "~7.0.3",
     "expo-router": "~4.0.15",
     "expo-splash-screen": "~0.29.18",
@@ -67,11 +68,11 @@
     "sp-react-native-mqtt": "^0.5.1",
     "uuid": "^11.0.3",
     "victory": "^37.3.5",
-    "victory-native": "^41.14.0",
-    "expo-image-picker": "~16.0.4"
+    "victory-native": "^41.14.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
+    "@react-native-community/cli": "latest",
     "@types/jest": "^29.5.12",
     "@types/luxon": "^3.4.2",
     "@types/paho-mqtt": "^1.0.10",
@@ -81,8 +82,7 @@
     "jest-expo": "~52.0.2",
     "react-native-svg-transformer": "^1.5.0",
     "react-test-renderer": "18.2.0",
-    "typescript": "~5.3.3",
-    "@react-native-community/cli": "latest"
+    "typescript": "~5.3.3"
   },
   "private": true
 }

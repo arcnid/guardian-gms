@@ -14,7 +14,7 @@ import {
 	TouchableWithoutFeedback,
 } from "react-native";
 import { MaterialIcons, FontAwesome5, Ionicons } from "@expo/vector-icons"; // Additional icons
-//import CustomMapView from "@/components/CustomMapView";
+import CustomMapView from "@/components/CustomMapView";
 
 // Enable LayoutAnimation on Android
 if (
@@ -24,21 +24,21 @@ if (
 	UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const CustomMapView = React.lazy(() => {
-	if (Platform.OS !== "web") {
-		// Dynamically import only for native platforms
-		return import("@/components/CustomMapView");
-	}
+// const CustomMapView = React.lazy(() => {
+// 	if (Platform.OS !== "web") {
+// 		// Dynamically import only for native platforms
+// 		return import("@/components/CustomMapView");
+// 	}
 
-	// Provide a valid fallback for web platforms
-	return Promise.resolve({
-		default: () => (
-			<View style={styles.mapContainer}>
-				<Text style={styles.mapText}>Map is not supported on the web.</Text>
-			</View>
-		),
-	});
-});
+// 	// Provide a valid fallback for web platforms
+// 	return Promise.resolve({
+// 		default: () => (
+// 			<View style={styles.mapContainer}>
+// 				<Text style={styles.mapText}>Map is not supported on the web.</Text>
+// 			</View>
+// 		),
+// 	});
+// });
 
 // Theme Variables (Original Branding)
 const Colors = {
