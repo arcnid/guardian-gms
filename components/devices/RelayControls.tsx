@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useContext } from "react";
+import React, { useState, useCallback, useContext } from "react";
 import {
 	Platform,
 	View,
@@ -6,6 +6,7 @@ import {
 	StyleSheet,
 	TouchableOpacity,
 } from "react-native";
+import Icon from "react-native-vector-icons/MaterialIcons"; // Importing MaterialIcons
 import { sendService } from "@/services/sendService";
 import { AuthContext } from "@/contexts/AuthContext";
 
@@ -47,7 +48,17 @@ export const RelayControls = ({ deviceId }: { deviceId: string }) => {
 		<View style={styles.outerContainer}>
 			<View style={styles.container}>
 				<Text style={styles.title}>Relay Controls</Text>
-				<Text style={styles.status}>Power: {isRelayOn ? "ON" : "OFF"}</Text>
+
+				<View style={styles.statusContainer}>
+					<Icon
+						name={isRelayOn ? "power" : "power-off"}
+						size={24}
+						color={isRelayOn ? "#4CAF50" : "#F44336"}
+						style={styles.statusIcon}
+					/>
+					<Text style={styles.status}>Power: {isRelayOn ? "ON" : "OFF"}</Text>
+				</View>
+
 				<View style={styles.toggleContainer}>
 					<TouchableOpacity
 						style={[
@@ -94,13 +105,11 @@ const styles = StyleSheet.create({
 		flex: 1,
 		backgroundColor: "#F5F5F5",
 		borderRadius: 10,
-		paddingTop: 10,
-		paddingBottom: 10,
-		paddingLeft: 5,
-		paddingRight: 5,
+		paddingTop: 5,
+		paddingBottom: 5,
 	},
 	container: {
-		padding: 16,
+		padding: 15,
 		backgroundColor: "#FFF",
 		borderRadius: 10,
 		elevation: 3,
@@ -112,10 +121,17 @@ const styles = StyleSheet.create({
 		marginBottom: 10,
 		color: "#333",
 	},
+	statusContainer: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		marginBottom: 16,
+	},
+	statusIcon: {
+		marginRight: 8,
+	},
 	status: {
 		fontSize: 18,
-		textAlign: "center",
-		marginBottom: 16,
 		color: "#555",
 	},
 	toggleContainer: {

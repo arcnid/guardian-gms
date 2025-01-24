@@ -104,12 +104,12 @@ const AddDeviceScreen = () => {
 				// Move back to the selection stage to show networks
 				setCurrentStage(0);
 			} else {
-				console.log("Unexpected data format:", response);
+				console.error("Unexpected data format:", response);
 				Alert.alert("Error", "Unexpected data format received.");
 				setCurrentStage(0);
 			}
 		} catch (error: any) {
-			console.log("Oops, an error occurred:", error);
+			console.error("Oops, an error occurred:", error);
 
 			// Check if the error is due to timeout
 			if (error.name === "AbortError") {

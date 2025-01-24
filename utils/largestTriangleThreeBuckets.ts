@@ -14,7 +14,6 @@ export function largestTriangleThreeBuckets<
 >(data: T[], threshold = 300): T[] {
 	// Log original data size
 	const dataLength = data.length;
-	console.log(`LTTB: received ${dataLength} points, threshold = ${threshold}`);
 
 	// If we have fewer than threshold items, return as is
 	if (threshold >= dataLength || threshold <= 2) {

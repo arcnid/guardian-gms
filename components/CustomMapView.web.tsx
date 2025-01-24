@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Platform } from "react-native";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -13,11 +13,16 @@ const customIcon = new L.Icon({
 	popupAnchor: [0, -40], // Adjust popup anchor to align with the icon
 });
 
-const CustomMapView = ({ mockData, onMarkerPress }) => {
+/**
+ * CustomMapView Component to display sites on a map
+ * @param {Array} data - Array of location objects fetched from the service
+ * @param {Function} onMarkerPress - Function to handle marker press events
+ */
+const CustomMapView = ({ data, onMarkerPress }) => {
 	try {
 		const defaultCenter = [
-			mockData[0]?.latitude || 43.509,
-			mockData[0]?.longitude || -96.9568,
+			data[0]?.latitude || 43.509,
+			data[0]?.longitude || -96.9568,
 		];
 
 		return (
@@ -32,7 +37,7 @@ const CustomMapView = ({ mockData, onMarkerPress }) => {
 						url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
 						attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 					/>
-					{mockData.map((site) => (
+					{data.map((site) => (
 						<Marker
 							key={site.id}
 							position={[site.latitude, site.longitude]}
@@ -45,14 +50,15 @@ const CustomMapView = ({ mockData, onMarkerPress }) => {
 								<View style={styles.popupContainer}>
 									<Text style={styles.popupTitle}>{site.name}</Text>
 									<Text style={styles.popupDetails}>
-										{site.bins.length} Bin{site.bins.length > 1 ? "s" : ""},{" "}
+										{site.bins.length} Bin
+										{site.bins.length > 1 ? "s" : ""},{" "}
 										{site.bins.reduce(
-											(acc, bin) => acc + bin.devices.length,
+											(acc: number, bin: any) => acc + bin.devices.length,
 											0
 										)}{" "}
 										Device
 										{site.bins.reduce(
-											(acc, bin) => acc + bin.devices.length,
+											(acc: number, bin: any) => acc + bin.devices.length,
 											0
 										) > 1
 											? "s"

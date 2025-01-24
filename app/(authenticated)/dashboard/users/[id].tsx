@@ -10,17 +10,17 @@ import {
 	Switch,
 	Alert,
 	ActivityIndicator,
-	SafeAreaView,
 } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
-import { AuthContext } from "@/contexts/AuthContext"; // Adjust the path if necessary
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { MaterialIcons } from "@expo/vector-icons";
+import { AuthContext } from "@/contexts/AuthContext"; // Ensure this path is correct
 import BackButton from "@/components/BackButton"; // Ensure this component exists
+import { AuthService } from "@/services/authService"; // Ensure this path is correct
 
 const ProfileScreen = () => {
 	const router = useRouter();
-	const { userId, logout } = useContext(AuthContext);
-	const { id } = useLocalSearchParams(); // If you're passing userId via route params
+	const { logout } = useContext(AuthContext);
 	const [userData, setUserData] = useState(null); // User data state
 	const [loading, setLoading] = useState(true); // Loading state
 	const [error, setError] = useState(null); // Error state
@@ -31,26 +31,15 @@ const ProfileScreen = () => {
 	const fetchUserData = useCallback(async () => {
 		try {
 			setError(null);
-			// Replace this with your actual user data fetching logic
-			// For example:
-			// const data = await UserService.getUserById(id || userId);
-			// setUserData(data);
-
-			// Mock data for demonstration
-			const data = {
-				id: id || userId,
-				userName: "Jane Doe",
-				userEmail: "janedoe@example.com",
-				userAvatar: "https://via.placeholder.com/150",
-			};
-			setUserData(data);
+			const { data } = await AuthService.getCurrentUser();
+			setUserData(data.user);
 		} catch (err) {
 			console.error("Error fetching user data:", err);
 			setError("Failed to load user data. Please try again.");
 		} finally {
 			setLoading(false);
 		}
-	}, [id, userId]);
+	}, []);
 
 	useEffect(() => {
 		fetchUserData();
@@ -58,18 +47,35 @@ const ProfileScreen = () => {
 
 	// Handle logout
 	const handleLogout = async () => {
-		await logout(); // Clear authentication state
-		router.replace("/login"); // Redirect to Login screen
+		try {
+			await logout(); // Clear authentication state
+			router.replace("/login"); // Redirect to Login screen
+		} catch (err) {
+			console.error("Error during logout:", err);
+			Alert.alert("Error", "Failed to log out. Please try again.");
+		}
 	};
 
 	// Handle navigation to edit profile
 	const handleEditProfile = () => {
-		router.push("/edit-profile"); // Navigate to the Edit Profile screen
+		// Navigate to the Edit Profile screen or show a placeholder
+		Alert.alert(
+			"Edit Profile",
+			"This will navigate to the Edit Profile screen."
+		);
+		// Example navigation:
+		// router.push("/edit-profile");
 	};
 
 	// Handle navigation to change password
 	const handleChangePassword = () => {
-		router.push("/change-password"); // Navigate to the Change Password screen
+		// Navigate to the Change Password screen or show a placeholder
+		Alert.alert(
+			"Change Password",
+			"This will navigate to the Change Password screen."
+		);
+		// Example navigation:
+		// router.push("/change-password");
 	};
 
 	// Handle toggling notifications
@@ -80,6 +86,7 @@ const ProfileScreen = () => {
 			`Notifications have been ${!isNotificationsEnabled ? "enabled" : "disabled"}.`,
 			[{ text: "OK" }]
 		);
+		// Optionally, persist this preference using AsyncStorage or update your backend
 	};
 
 	// Handle toggling dark mode
@@ -90,6 +97,7 @@ const ProfileScreen = () => {
 			`Dark mode has been ${!isDarkMode ? "enabled" : "disabled"}.`,
 			[{ text: "OK" }]
 		);
+		// Optionally, implement actual theme changes
 	};
 
 	if (loading) {
@@ -111,12 +119,18 @@ const ProfileScreen = () => {
 		);
 	}
 
+	const getLastRoute = () => {
+		// This function should return the last route name
+		return "dashboard"; // Replace with your logic to get the last route
+	};
+
 	return (
 		<SafeAreaView style={styles.container}>
 			{/* Header with Back Button */}
 			<View style={styles.headerContainer}>
-				<BackButton label="Dashboard" />
+				<BackButton label="Back" route={getLastRoute()} />
 				{/* Placeholder for alignment */}
+				<View style={{ width: 24 }} /> {/* To balance the BackButton */}
 			</View>
 
 			{/* Profile Content */}
@@ -125,14 +139,16 @@ const ProfileScreen = () => {
 				<View style={styles.userInfoContainer}>
 					<Image
 						source={{
-							uri: userData.userAvatar || "https://via.placeholder.com/150",
+							uri:
+								userData.user_metadata.avatar_url ||
+								"https://via.placeholder.com/150",
 						}}
 						style={styles.avatar}
 					/>
-					<Text style={styles.userName}>{userData.userName || "John Doe"}</Text>
-					<Text style={styles.userEmail}>
-						{userData.userEmail || "johndoe@example.com"}
+					<Text style={styles.userName}>
+						{userData.user_metadata.full_name || userData.email.split("@")[0]}
 					</Text>
+					<Text style={styles.userEmail}>{userData.email}</Text>
 					<TouchableOpacity
 						onPress={handleEditProfile}
 						style={styles.editProfileButton}
@@ -207,12 +223,6 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 16,
 		paddingVertical: 10,
 		paddingBottom: 0,
-	},
-	headerTitle: {
-		fontSize: 24,
-		fontWeight: "bold",
-		color: "#333",
-		marginLeft: -65,
 	},
 	scrollContent: {
 		padding: 16,

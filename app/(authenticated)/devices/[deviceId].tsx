@@ -10,6 +10,7 @@ import {
 	SafeAreaView,
 	ScrollView,
 	ActivityIndicator,
+	RefreshControl, // Added import
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -51,6 +52,10 @@ const DeviceScreen = () => {
 	// Image upload state
 	const [uploadingImage, setUploadingImage] = useState(false);
 
+	// Refresh state
+	const [refreshing, setRefreshing] = useState(false); // Existing state
+	const [refreshCounter, setRefreshCounter] = useState(0); // New state
+
 	// Function to handle image selection and upload
 	const handleImageUpload = async () => {
 		try {
@@ -72,12 +77,10 @@ const DeviceScreen = () => {
 			if (!result.canceled && result.assets?.length > 0) {
 				// Get the selected image URI
 				const imageUri = result.assets[0].uri;
-				console.log("Selected image URI:", imageUri);
 
 				// Fetch the image file as a Blob
 				const response = await fetch(imageUri);
 				const imageData = await response.blob();
-				console.log("Fetched image blob:", imageData);
 
 				setUploadingImage(true);
 
@@ -86,13 +89,11 @@ const DeviceScreen = () => {
 					deviceId as string,
 					imageData
 				);
-				console.log("Image uploaded successfully.");
 
 				// Fetch the updated image URL from the backend
 				const updatedImageUrl = await UserDeviceService.getDeviceImageUrl(
 					deviceId as string
 				);
-				console.log("Updated image URL:", updatedImageUrl);
 
 				// Update the deviceImageUri state with the new image URL
 				setDeviceImageUri(updatedImageUrl);
@@ -114,6 +115,15 @@ const DeviceScreen = () => {
 		if (!deviceId) {
 			console.log("Device ID not found");
 			return;
+		}
+
+		try {
+			const res = await UserDeviceService.getDeviceWithLatestLog(
+				deviceId as string
+			);
+			// It seems `res` is fetched but not used. If needed, you can handle it here.
+		} catch (e) {
+			console.error(e);
 		}
 
 		try {
@@ -179,6 +189,14 @@ const DeviceScreen = () => {
 		}
 	}, [deviceId]);
 
+	// New: Refresh handler
+	const onRefresh = useCallback(async () => {
+		setRefreshing(true);
+		await Promise.all([getDeviceInfo(), getRecentLogs(), getLatestTempHumid()]);
+		setRefreshCounter((prev) => prev + 1); // Increment refreshCounter
+		setRefreshing(false);
+	}, [getDeviceInfo, getRecentLogs, getLatestTempHumid]);
+
 	useEffect(() => {
 		getDeviceInfo();
 	}, [getDeviceInfo]);
@@ -193,10 +211,8 @@ const DeviceScreen = () => {
 
 	// Debugging: Log deviceImageUri on render
 	useEffect(() => {
-		console.log("Current deviceImageUri:", deviceImageUri);
-
 		if (deviceImageUri == null) {
-			//dont even try to show image
+			// don't even try to show image
 		}
 	}, [deviceImageUri]);
 
@@ -227,9 +243,19 @@ const DeviceScreen = () => {
 	const isRelay = deviceData.device_type.toLowerCase() === "relay";
 	const isSensor = deviceData.device_type.toLowerCase() === "sensor";
 
+	const getLastCommunication = (device: DeviceData) => {
+		console.log("this is my device data", deviceData);
+		return new Date(deviceData.added_at).toLocaleString() || "N/A";
+	};
+
 	return (
 		<SafeAreaView style={styles.container}>
-			<ScrollView contentContainerStyle={styles.scrollContent}>
+			<ScrollView
+				contentContainerStyle={styles.scrollContent}
+				refreshControl={
+					<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+				}
+			>
 				<View>
 					<BackButton label="Devices" />
 				</View>
@@ -285,23 +311,16 @@ const DeviceScreen = () => {
 					</View>
 				</View>
 
-				<View style={styles.lastCommunication}>
-					<MaterialIcons name="access-time" size={20} color="#555" />
-					<Text style={styles.lastCommText}>
-						Last Communication:{" "}
-						{new Date(deviceData.added_at).toLocaleString() || "N/A"}
-					</Text>
-				</View>
-
 				{isRelay && <RelayControls deviceId={deviceId}></RelayControls>}
 
 				{isSensor && (
 					<>
+						{/* Pass refreshCounter as a prop to RecentSensorData */}
 						<RecentSensorData
-							temp={latestTempHumid?.temp_sensor_reading}
-							humid={latestTempHumid?.humid_sensor_reading}
+							deviceId={deviceId as string}
+							refreshCounter={refreshCounter}
 						/>
-						<SensorChart logs={logs} deviceId={deviceId as any} />
+						<SensorChart logs={logs} deviceId={deviceId as string} />
 					</>
 				)}
 			</ScrollView>
@@ -368,7 +387,6 @@ const styles = StyleSheet.create({
 	lastCommunication: {
 		flexDirection: "row",
 		alignItems: "center",
-		marginBottom: 20,
 	},
 	lastCommText: {
 		fontSize: 14,

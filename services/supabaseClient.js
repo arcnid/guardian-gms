@@ -7,6 +7,13 @@ const SUPABASE_URL = "https://gekhbjzsclrrfojpvjqr.supabase.co";
 const SUPABASE_KEY =
 	"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdla2hianpzY2xycmZvanB2anFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzE1OTk4NzgsImV4cCI6MjA0NzE3NTg3OH0.GW-aKMNhx092k-DpTBgSTMqjxjKMBTy9UqmNjWGYmy4";
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+	realtime: {
+		reconnectAfterMs: 30,
+		params: {
+			eventsPerSecond: 60, // Adjust as needed
+		},
+	},
+});
 
 export const getSupabaseClient = () => supabase;

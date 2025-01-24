@@ -35,7 +35,6 @@ const SignupScreen = () => {
 		setLoading(true);
 
 		try {
-			console.log("about to sign up for Guardian");
 			await AuthService.signUp(email, password);
 
 			Alert.alert("Success", "Account created successfully!");

@@ -1,3 +1,4 @@
+import { GoogleMapsApiKey } from "@expo/config-plugins/build/android";
 import "dotenv/config"; // Automatically loads variables from .env
 
 export default {
@@ -10,7 +11,7 @@ export default {
 			SUPABASE_KEY: process.env.SUPABASE_ANON_KEY,
 			hostURL: process.env.hostURL,
 			eas: {
-				projectId: "868c5333-a4 63-4787-8488-03f595dc677f",
+				projectId: "868c5333-a463-4787-8488-03f595dc677f",
 			},
 		},
 
@@ -24,22 +25,23 @@ export default {
 			backgroundColor: "#ffffff",
 		},
 		ios: {
-			bundleIdentifier: "com.SiouxSteel.guardian", // Unique identifier for iOS
+			bundleIdentifier: "com.siouxsteel.guardian", // Unique identifier for iOS
 			supportsTablet: true,
 		},
 		android: {
-			package: "com.yourcompany.guardian", // Unique identifier for Android
+			package: "com.siouxsteel.guardianandroid", // Unique identifier for Android
 			adaptiveIcon: {
 				foregroundImage: "./assets/images/adaptive-icon.png",
 				backgroundColor: "#ffffff",
 			},
+			googleMapsApiKey: "AIzaSyB64Xzy1HRz_zhdms_2-CMJgmpda3qjKp8",
 		},
 		web: {
 			bundler: "metro",
 			output: "single",
 			favicon: "./assets/images/favicon.png",
 		},
-		plugins: ["expo-router", "expo-font"],
+		plugins: ["expo-router", "expo-font", "expo-notifications"],
 		experiments: {
 			typedRoutes: true,
 		},

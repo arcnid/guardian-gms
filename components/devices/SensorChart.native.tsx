@@ -46,8 +46,27 @@ export const SensorChart = ({ deviceId }: { deviceId: string }) => {
 		})) || [];
 
 	// Prepare data for the chart
+	const labels = graphData.map((point) => point.date.toLocaleDateString());
+
+	// Function to format labels: show only first, middle, and last
+	const formatLabels = (labels: string[]) => {
+		const count = labels.length;
+		if (count <= 3) {
+			return labels; // No need to format if 3 or fewer labels
+		}
+		const middleIndex = Math.floor(count / 2);
+		return labels.map((label, index) => {
+			if (index === 0 || index === middleIndex || index === count - 1) {
+				return label;
+			}
+			return "";
+		});
+	};
+
+	const formattedLabels = formatLabels(labels);
+
 	const chartData = {
-		labels: graphData.map((point) => point.date.toLocaleDateString()),
+		labels: formattedLabels,
 		datasets: [
 			{
 				data: graphData.map((point) => point.value),
@@ -89,7 +108,7 @@ export const SensorChart = ({ deviceId }: { deviceId: string }) => {
 				<View>
 					<Text style={styles.title}>
 						{activeTab === "temp"
-							? "Temperature Over Time (C)"
+							? "Temperature Over Time (°C)"
 							: "Humidity Over Time (%)"}
 					</Text>
 				</View>
@@ -173,7 +192,7 @@ const styles = StyleSheet.create({
 	outerContainer: {
 		flex: 1,
 		backgroundColor: "#fff",
-		marginTop: 20,
+		marginTop: 10,
 		borderRadius: 10,
 		paddingTop: 10,
 		paddingBottom: 10,
@@ -186,6 +205,7 @@ const styles = StyleSheet.create({
 		backgroundColor: "#FFF",
 		borderRadius: 10,
 		elevation: 3,
+		alignItems: "center",
 	},
 	title: {
 		fontSize: 18,
@@ -270,5 +290,9 @@ const styles = StyleSheet.create({
 		color: "#999",
 		fontSize: 12,
 		textAlign: "center",
+	},
+	errorInline: {
+		justifyContent: "center",
+		alignItems: "center",
 	},
 });

@@ -1,32 +1,318 @@
-import React, { useCallback, useEffect, useState } from "react";
+// components/devices/RecentSensorData.tsx
+
+import React, { useEffect, useState, useRef } from "react";
 import {
 	View,
 	Text,
-	Image,
 	StyleSheet,
-	TouchableOpacity,
-	SafeAreaView,
-	ScrollView,
+	ActivityIndicator,
+	AppState,
+	AppStateStatus,
 } from "react-native";
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
+import { getSupabaseClient } from "@/services/supabaseClient";
+import {
+	SupabaseClient,
+	PostgresChangesPayload,
+	RealtimeChannel,
+} from "@supabase/supabase-js";
 
-export const RecentSensorData = ({
-	temp,
-	humid,
-}: {
-	temp: number;
-	humid: number;
+/**
+ * Helper function to calculate time difference and return a "time ago" string
+ */
+const timeAgo = (timestamp: string): string => {
+	if (!timestamp) return "N/A";
+	const now = new Date();
+	const then = new Date(timestamp);
+	const secondsPast = Math.floor((now.getTime() - then.getTime()) / 1000);
+
+	if (isNaN(secondsPast) || secondsPast < 0) {
+		return "N/A";
+	}
+
+	if (secondsPast < 60) {
+		return `${secondsPast} sec${secondsPast !== 1 ? "s" : ""} ago`;
+	}
+	if (secondsPast < 3600) {
+		const minutes = Math.floor(secondsPast / 60);
+		return `${minutes} min${minutes !== 1 ? "s" : ""} ago`;
+	}
+	if (secondsPast < 86400) {
+		const hours = Math.floor(secondsPast / 3600);
+		return `${hours} hour${hours !== 1 ? "s" : ""} ago`;
+	}
+	const days = Math.floor(secondsPast / 86400);
+	return `${days} day${days !== 1 ? "s" : ""} ago`;
+};
+
+/**
+ * LogEntry Interface
+ */
+interface LogEntry {
+	id: number;
+	created_at: string;
+	temp_sensor_reading: number;
+	humid_sensor_reading: number;
+	// Add other relevant fields if necessary
+}
+
+/**
+ * Props Interface for RecentSensorData
+ */
+interface RecentSensorDataProps {
+	deviceId: string;
+	refreshCounter: number; // New prop
+}
+
+/**
+ * RecentSensorData Component to display temperature, humidity, and last communication time
+ */
+export const RecentSensorData: React.FC<RecentSensorDataProps> = ({
+	deviceId,
+	refreshCounter, // Receive the new prop
 }) => {
+	const [latestLog, setLatestLog] = useState<LogEntry | null>(null);
+	const [timeAgoString, setTimeAgoString] = useState<string>("N/A");
+	const [loading, setLoading] = useState<boolean>(true);
+	const [error, setError] = useState<string | null>(null);
+	const intervalRef = useRef<NodeJS.Timeout | null>(null);
+	const subscriptionRef = useRef<RealtimeChannel | null>(null);
+	const appState = useRef<AppStateStatus>(AppState.currentState);
+	const supabaseClient: SupabaseClient = getSupabaseClient();
+
+	/**
+	 * Fetch the latest log entry for the device
+	 */
+	const fetchLatestLog = async () => {
+		console.log("Fetching latest log for deviceId:", deviceId); // Debugging
+		try {
+			const { data, error } = await supabaseClient
+				.from<LogEntry>("deviceLogs") // Ensure table name is correct
+				.select("*")
+				.eq("device_id", deviceId)
+				.order("created_at", { ascending: false })
+				.limit(1);
+
+			console.log("Fetch response data:", data); // Debugging
+
+			if (error) {
+				console.error("Error fetching latest log:", error);
+				setError("Failed to fetch latest log.");
+				return;
+			}
+
+			if (data && data.length > 0) {
+				console.log("Latest Log:", data[0]); // Debugging
+				console.log("Temperature:", data[0].temp_sensor_reading); // Debugging
+				console.log("Humidity:", data[0].humid_sensor_reading); // Debugging
+				setLatestLog(data[0]);
+				setTimeAgoString(timeAgo(data[0].created_at));
+			} else {
+				console.log("No logs found for deviceId:", deviceId); // Debugging
+				setLatestLog(null);
+				setTimeAgoString("N/A");
+			}
+		} catch (err) {
+			console.error("Unexpected error fetching latest log:", err);
+			setError("An unexpected error occurred.");
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	/**
+	 * Subscribe to real-time log insertions for the device
+	 */
+	const subscribeToNewLogs = () => {
+		// Create a unique channel name based on deviceId and refreshCounter to avoid conflicts
+		const channelName = `device-logs-${deviceId}-${refreshCounter}`;
+		console.log("Subscribing to channel:", channelName); // Debugging
+
+		const subscription = supabaseClient
+			.channel(channelName)
+			.on(
+				"postgres_changes",
+				{
+					event: "INSERT",
+					schema: "public", // Or your actual schema
+					table: "deviceLogs",
+					filter: `device_id=eq.${deviceId}`, // Properly formatted filter
+				},
+				(payload: PostgresChangesPayload<LogEntry>) => {
+					console.log("Realtime log insert received:", payload.new);
+					setLatestLog(payload.new);
+					setTimeAgoString(timeAgo(payload.new.created_at));
+				}
+			)
+			.subscribe((status) => {
+				console.log(`Subscription status for ${channelName}:`, status);
+				if (status === "SUBSCRIBED") {
+					console.log("Connected to Supabase Realtime!");
+				}
+
+				if (status === "CHANNEL_ERROR") {
+					console.log("There was an error subscribing to the channel.");
+				}
+
+				if (status === "TIMED_OUT") {
+					console.log("Realtime server did not respond in time.");
+				}
+
+				if (status === "CLOSED") {
+					console.log("Realtime channel was unexpectedly closed.");
+				}
+			});
+
+		subscriptionRef.current = subscription;
+	};
+
+	/**
+	 * Cleanup Supabase subscription and timer
+	 */
+	const cleanupResources = () => {
+		if (subscriptionRef.current) {
+			supabaseClient.removeChannel(subscriptionRef.current);
+			console.log("Unsubscribed from channel:", subscriptionRef.current); // Debugging
+			subscriptionRef.current = null;
+		}
+		if (intervalRef.current) {
+			clearInterval(intervalRef.current);
+			console.log("Cleared interval"); // Debugging
+			intervalRef.current = null;
+		}
+	};
+
+	/**
+	 * Initialize data fetching and subscriptions
+	 */
+	useEffect(() => {
+		console.log(
+			"Initializing RecentSensorData for deviceId:",
+			deviceId,
+			"refreshCounter:",
+			refreshCounter
+		); // Debugging
+		fetchLatestLog();
+		subscribeToNewLogs();
+
+		// Handler for app state changes
+		const handleAppStateChange = (nextAppState: AppStateStatus) => {
+			if (
+				appState.current.match(/inactive|background/) &&
+				nextAppState === "active"
+			) {
+				console.log("App has come to the foreground!");
+				// Re-fetch latest log when app comes to foreground
+				fetchLatestLog();
+			}
+			appState.current = nextAppState;
+		};
+
+		// Listen to app state changes
+		const appStateSubscription = AppState.addEventListener(
+			"change",
+			handleAppStateChange
+		);
+
+		// Cleanup on unmount or when dependencies change
+		return () => {
+			cleanupResources();
+			// Remove app state listener
+			appStateSubscription.remove();
+		};
+	}, [deviceId, refreshCounter]); // Added refreshCounter
+
+	/**
+	 * Update "Last Reading" every second
+	 */
+	useEffect(() => {
+		const updateTimeAgo = () => {
+			if (latestLog) {
+				const newTimeAgo = timeAgo(latestLog.created_at);
+				setTimeAgoString(newTimeAgo);
+			} else {
+				setTimeAgoString("N/A");
+			}
+		};
+
+		// Initial update
+		updateTimeAgo();
+
+		// Set interval to update every second
+		intervalRef.current = setInterval(updateTimeAgo, 1000); // 1 second
+		console.log("Interval set for updating timeAgoString"); // Debugging
+
+		// Cleanup interval on unmount or when latestLog changes
+		return () => {
+			if (intervalRef.current) {
+				clearInterval(intervalRef.current);
+				console.log("Cleared interval"); // Debugging
+				intervalRef.current = null;
+			}
+		};
+	}, [latestLog]);
+
+	/**
+	 * Render Loading State
+	 */
+	if (loading) {
+		return (
+			<View style={styles.sensorData}>
+				<Text style={styles.sectionHeader}>Recent Sensor Data</Text>
+				<ActivityIndicator size="small" color="#71A12F" />
+			</View>
+		);
+	}
+
+	/**
+	 * Render Error State
+	 */
+	if (error) {
+		return (
+			<View style={styles.sensorData}>
+				<Text style={styles.sectionHeader}>Recent Sensor Data</Text>
+				<Text style={styles.errorText}>{error}</Text>
+			</View>
+		);
+	}
+
+	/**
+	 * Render Sensor Data
+	 */
 	return (
 		<View style={styles.sensorData}>
 			<Text style={styles.sectionHeader}>Recent Sensor Data</Text>
+
 			<View style={styles.sensorRow}>
 				<MaterialIcons name="thermostat" size={30} color="#FF5722" />
-				<Text style={styles.sensorValue}>Temperature: {temp || "N/A"}°C</Text>
+				<View style={styles.labelValueContainer}>
+					<Text style={styles.label}>Temperature</Text>
+					<Text style={styles.value}>
+						{latestLog && latestLog.temp_sensor_reading !== null
+							? `${latestLog.temp_sensor_reading}°C`
+							: "N/A"}
+					</Text>
+				</View>
 			</View>
+
 			<View style={styles.sensorRow}>
 				<FontAwesome5 name="water" size={30} color="#2196F3" />
-				<Text style={styles.sensorValue}>Humidity: {humid || "N/A"}%</Text>
+				<View style={styles.labelValueContainer}>
+					<Text style={styles.label}>Humidity</Text>
+					<Text style={styles.value}>
+						{latestLog && latestLog.humid_sensor_reading !== null
+							? `${latestLog.humid_sensor_reading}%`
+							: "N/A"}
+					</Text>
+				</View>
+			</View>
+
+			<View style={styles.sensorRow}>
+				<MaterialIcons name="access-time" size={30} color="#555555" />
+				<View style={styles.labelValueContainer}>
+					<Text style={styles.label}>Last Reading</Text>
+					<Text style={styles.value}>{timeAgoString}</Text>
+				</View>
 			</View>
 		</View>
 	);
@@ -35,24 +321,46 @@ export const RecentSensorData = ({
 const styles = StyleSheet.create({
 	sensorData: {
 		backgroundColor: "#FFF",
-		padding: 15,
+		padding: 16,
 		borderRadius: 10,
 		elevation: 3,
+		marginBottom: 15, // Added margin for spacing
+		marginTop: 5,
+		paddingBottom: 10,
 	},
+	// Updated sensorRow to align items vertically centered and space between label and value
 	sensorRow: {
 		flexDirection: "row",
 		alignItems: "center",
 		marginBottom: 10,
 	},
-	sensorValue: {
+	labelValueContainer: {
+		flex: 1,
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		marginLeft: 10,
+	},
+	label: {
 		fontSize: 16,
 		color: "#333",
-		marginLeft: 10,
+		flex: 1, // Ensure the label takes available space
+	},
+	value: {
+		fontSize: 16,
+		color: "#333",
+		textAlign: "right",
+		flex: 1, // Ensure the value takes available space
 	},
 	sectionHeader: {
 		fontSize: 18,
 		fontWeight: "bold",
 		color: "#333",
 		marginBottom: 10,
+	},
+	errorText: {
+		fontSize: 16,
+		color: "red",
+		textAlign: "center",
 	},
 });

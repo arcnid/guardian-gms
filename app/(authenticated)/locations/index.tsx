@@ -1,4 +1,10 @@
-import React, { useState } from "react";
+import React, {
+	useState,
+	useRef,
+	useCallback,
+	useContext,
+	useEffect,
+} from "react";
 import {
 	SafeAreaView,
 	View,
@@ -12,9 +18,16 @@ import {
 	Modal,
 	ScrollView,
 	TouchableWithoutFeedback,
+	Animated,
+	ActivityIndicator,
+	Alert,
 } from "react-native";
 import { MaterialIcons, FontAwesome5, Ionicons } from "@expo/vector-icons"; // Additional icons
 import CustomMapView from "@/components/CustomMapView";
+import { locationService } from "@/services/locations/service";
+import { AuthContext } from "@/contexts/AuthContext";
+import { useFocusEffect, useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage"; // Import AsyncStorage
 
 // Enable LayoutAnimation on Android
 if (
@@ -23,22 +36,6 @@ if (
 ) {
 	UIManager.setLayoutAnimationEnabledExperimental(true);
 }
-
-// const CustomMapView = React.lazy(() => {
-// 	if (Platform.OS !== "web") {
-// 		// Dynamically import only for native platforms
-// 		return import("@/components/CustomMapView");
-// 	}
-
-// 	// Provide a valid fallback for web platforms
-// 	return Promise.resolve({
-// 		default: () => (
-// 			<View style={styles.mapContainer}>
-// 				<Text style={styles.mapText}>Map is not supported on the web.</Text>
-// 			</View>
-// 		),
-// 	});
-// });
 
 // Theme Variables (Original Branding)
 const Colors = {
@@ -76,11 +73,15 @@ const Fonts = {
 	},
 };
 
+// Cache configuration
+const CACHE_KEY = "locationsCache";
+const CACHE_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
+
 // Helper function to calculate time difference
-const timeAgo = (timestamp) => {
+const timeAgo = (timestamp: string) => {
 	const now = new Date();
 	const then = new Date(timestamp);
-	const secondsPast = Math.floor((now - then) / 1000);
+	const secondsPast = Math.floor((now.getTime() - then.getTime()) / 1000);
 
 	if (secondsPast < 60) {
 		return `${secondsPast} sec${secondsPast > 1 ? "s" : ""} ago`;
@@ -97,163 +98,162 @@ const timeAgo = (timestamp) => {
 	return `${days} day${days > 1 ? "s" : ""} ago`;
 };
 
-// Mock data with South Dakota locations
-const mockData = [
-	{
-		id: "1",
-		name: "East River Site",
-		latitude: 43.509, // East River, SD
-		longitude: -96.9568,
-		bins: [
-			{
-				id: "101",
-				name: "Bin ER1",
-				devices: [
-					{
-						id: "1001",
-						name: "Control Box ER1-1",
-						type: "control-box",
-						isOn: true,
-						isOnline: true,
-					},
-					{
-						id: "1002",
-						name: "Sensor ER1-2",
-						type: "sensor",
-						temperature: 20,
-						humidity: 50,
-						lastRead: "2024-04-27T12:30:00Z",
-						isOnline: true,
-					},
-				],
-			},
-			{
-				id: "102",
-				name: "Bin ER2",
-				devices: [
-					{
-						id: "1003",
-						name: "Sensor ER2-1",
-						type: "sensor",
-						temperature: 21,
-						humidity: 55,
-						lastRead: "2024-04-27T12:45:00Z",
-						isOnline: false,
-					},
-				],
-			},
-		],
-	},
-	{
-		id: "2",
-		name: "Sioux Falls Site",
-		latitude: 43.5446, // Sioux Falls, SD
-		longitude: -96.7311,
-		bins: [
-			{
-				id: "201",
-				name: "Bin SF1",
-				devices: [
-					{
-						id: "2001",
-						name: "Control Box SF1-1",
-						type: "control-box",
-						isOn: false,
-						isOnline: true,
-					},
-					{
-						id: "2002",
-						name: "Sensor SF1-2",
-						type: "sensor",
-						temperature: 22,
-						humidity: 60,
-						lastRead: "2024-04-27T13:00:00Z",
-						isOnline: true,
-					},
-					{
-						id: "2003",
-						name: "Sensor SF1-3",
-						type: "sensor",
-						temperature: 19,
-						humidity: 48,
-						lastRead: "2024-04-27T13:15:00Z",
-						isOnline: false,
-					},
-				],
-			},
-		],
-	},
-	{
-		id: "3",
-		name: "Lennox Site",
-		latitude: 43.3435, // Lennox, SD
-		longitude: -96.3072,
-		bins: [
-			{
-				id: "301",
-				name: "Bin LX1",
-				devices: [
-					{
-						id: "3001",
-						name: "Control Box LX1-1",
-						type: "control-box",
-						isOn: true,
-						isOnline: true,
-					},
-					{
-						id: "3002",
-						name: "Sensor LX1-2",
-						type: "sensor",
-						temperature: 23,
-						humidity: 65,
-						lastRead: "2024-04-27T14:00:00Z",
-						isOnline: true,
-					},
-				],
-			},
-			{
-				id: "302",
-				name: "Bin LX2",
-				devices: [
-					{
-						id: "3003",
-						name: "Sensor LX2-1",
-						type: "sensor",
-						temperature: 18,
-						humidity: 52,
-						lastRead: "2024-04-27T14:15:00Z",
-						isOnline: false,
-					},
-				],
-			},
-		],
-	},
-];
-
 /**
  * Main Screen Component for Locations
  */
 const LocationsScreen = () => {
+	const { userId } = useContext(AuthContext);
 	const [activeTab, setActiveTab] = useState("List");
 	const [modalVisible, setModalVisible] = useState(false);
 	const [selectedSite, setSelectedSite] = useState(null);
+	const [locations, setLocations] = useState<Array<any>>([]);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
+
+	/**
+	 * Loads cached locations from AsyncStorage
+	 */
+	const loadCachedLocations = async () => {
+		try {
+			const cachedData = await AsyncStorage.getItem(CACHE_KEY);
+			if (cachedData !== null) {
+				const parsedData = JSON.parse(cachedData);
+				const { timestamp, data } = parsedData;
+				const now = new Date().getTime();
+
+				if (now - timestamp < CACHE_DURATION) {
+					setLocations(data);
+					setLoading(false);
+					console.log("Loaded locations from cache.");
+				} else {
+					console.log("Cache expired. Fetching new data.");
+				}
+			}
+		} catch (err) {
+			console.error("Error loading cached locations:", err);
+		}
+	};
+
+	/**
+	 * Saves locations to AsyncStorage
+	 * @param {Array<any>} data - The locations data to cache
+	 */
+	const cacheLocations = async (data: Array<any>) => {
+		try {
+			const cacheEntry = {
+				timestamp: new Date().getTime(),
+				data,
+			};
+			await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(cacheEntry));
+			console.log("Locations cached successfully.");
+		} catch (err) {
+			console.error("Error caching locations:", err);
+		}
+	};
+
+	const fetchLocations = useCallback(async () => {
+		try {
+			// Attempt to load cached data first
+			const cachedData = await AsyncStorage.getItem(CACHE_KEY);
+			if (cachedData) {
+				const { timestamp, data } = JSON.parse(cachedData);
+				const now = Date.now();
+
+				// If cache is valid, display cached data immediately
+				if (now - timestamp < CACHE_DURATION) {
+					setLocations(data);
+					console.log("Using cached data.");
+				}
+			}
+
+			// Fetch fresh data in the background
+			const res = await locationService.getLocationsForUser(userId);
+
+			// Compare the fetched data with cached data
+			if (
+				!cachedData ||
+				JSON.stringify(res) !== JSON.stringify(JSON.parse(cachedData)?.data)
+			) {
+				console.log("New data fetched. Updating UI and cache.");
+				setLocations(res);
+				await cacheLocations(res); // Cache the fresh data
+			} else {
+				console.log("Fetched data matches cached data. No update required.");
+			}
+		} catch (err) {
+			console.error("Error fetching locations:", err);
+			setError("Failed to load locations. Please try again.");
+		} finally {
+			setLoading(false);
+		}
+	}, [userId]);
+
+	// Fetch locations on component mount and when userId changes
+	useFocusEffect(
+		useCallback(() => {
+			fetchLocations();
+		}, [fetchLocations])
+	);
 
 	/**
 	 * Handles marker press to display modal with site details
 	 * @param {Object} site - The site object that was selected
 	 */
-	const handleMarkerPress = (site) => {
+	const handleMarkerPress = (site: any) => {
 		setSelectedSite(site);
 		setModalVisible(true);
 	};
+
+	/**
+	 * Closes the modal and clears the selected site
+	 */
+	const closeModal = () => {
+		setModalVisible(false);
+		setSelectedSite(null);
+	};
+
+	/**
+	 * Retry fetching locations in case of an error
+	 */
+	const retryFetch = () => {
+		setError(null);
+		setLoading(true);
+		fetchLocations();
+	};
+
+	if (loading) {
+		return (
+			<View style={styles.centered}>
+				<ActivityIndicator size="large" color={Colors.primary} />
+				<Text style={{ marginTop: 10 }}>Loading...</Text>
+			</View>
+		);
+	}
+
+	if (error) {
+		return (
+			<View style={styles.centered}>
+				<Text style={{ color: Colors.powerOff, marginBottom: 10 }}>
+					{error}
+				</Text>
+				<TouchableOpacity
+					onPress={retryFetch}
+					style={styles.retryButton}
+					activeOpacity={0.7}
+				>
+					<Text style={styles.retryButtonText}>Retry</Text>
+				</TouchableOpacity>
+			</View>
+		);
+	}
 
 	return (
 		<SafeAreaView style={styles.container}>
 			<TabBar activeTab={activeTab} setActiveTab={setActiveTab} />
 			{activeTab === "List" ? (
-				<ListView />
+				<ListView locations={locations} />
 			) : (
-				<CustomMapView onMarkerPress={handleMarkerPress} mockData={mockData} />
+				<CustomMapView data={locations} onMarkerPress={handleMarkerPress} />
 			)}
 
 			{/* Modal for displaying site details */}
@@ -262,18 +262,15 @@ const LocationsScreen = () => {
 					animationType="slide"
 					transparent={true}
 					visible={modalVisible}
-					onRequestClose={() => {
-						setModalVisible(false);
-						setSelectedSite(null);
-					}}
+					onRequestClose={closeModal}
 				>
-					<TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
+					<TouchableWithoutFeedback onPress={closeModal}>
 						<View style={styles.modalOverlay} />
 					</TouchableWithoutFeedback>
 					<View style={styles.modalContainer}>
 						<View style={styles.modalHeader}>
 							<Text style={styles.modalTitle}>{selectedSite.name}</Text>
-							<TouchableOpacity onPress={() => setModalVisible(false)}>
+							<TouchableOpacity onPress={closeModal}>
 								<MaterialIcons
 									name="close"
 									size={24}
@@ -286,18 +283,18 @@ const LocationsScreen = () => {
 								{selectedSite.bins.length} Bin
 								{selectedSite.bins.length > 1 ? "s" : ""},{" "}
 								{selectedSite.bins.reduce(
-									(acc, bin) => acc + bin.devices.length,
+									(acc: number, bin: any) => acc + bin.devices.length,
 									0
 								)}{" "}
 								Device
 								{selectedSite.bins.reduce(
-									(acc, bin) => acc + bin.devices.length,
+									(acc: number, bin: any) => acc + bin.devices.length,
 									0
 								) > 1
 									? "s"
 									: ""}
 							</Text>
-							{selectedSite.bins.map((bin) => (
+							{selectedSite.bins.map((bin: any) => (
 								<BinCard key={bin.id} bin={bin} />
 							))}
 						</ScrollView>
@@ -356,14 +353,19 @@ const TabBar = ({ activeTab, setActiveTab }) => {
 /**
  * ListView Component to display list of sites
  */
-const ListView = () => {
+const ListView = ({ locations }) => {
 	return (
 		<FlatList
 			contentContainerStyle={styles.listContainer}
-			data={mockData}
+			data={locations}
 			keyExtractor={(item) => item.id}
 			renderItem={({ item }) => <SiteCard site={item} />}
 			ItemSeparatorComponent={() => <View style={styles.separator} />}
+			// Improve performance by providing estimated item size
+			initialNumToRender={10}
+			maxToRenderPerBatch={10}
+			windowSize={21}
+			removeClippedSubviews={true}
 		/>
 	);
 };
@@ -373,6 +375,8 @@ const ListView = () => {
  */
 const SiteCard = ({ site }) => {
 	const [expanded, setExpanded] = useState(false);
+	const scaleAnim = useRef(new Animated.Value(1)).current;
+	const rotateAnim = useRef(new Animated.Value(0)).current;
 
 	/**
 	 * Toggles the expanded state of the card
@@ -382,9 +386,54 @@ const SiteCard = ({ site }) => {
 		setExpanded(!expanded);
 	};
 
+	/**
+	 * Handles press in animation
+	 */
+	const onPressIn = () => {
+		Animated.spring(scaleAnim, {
+			toValue: 0.97,
+			friction: 3,
+			tension: 40,
+			useNativeDriver: true,
+		}).start();
+	};
+
+	/**
+	 * Handles press out animation
+	 */
+	const onPressOut = () => {
+		Animated.spring(scaleAnim, {
+			toValue: 1,
+			friction: 3,
+			tension: 40,
+			useNativeDriver: true,
+		}).start();
+	};
+
+	/**
+	 * Handles rotation animation for the expand icon
+	 */
+	useEffect(() => {
+		Animated.timing(rotateAnim, {
+			toValue: expanded ? 1 : 0,
+			duration: 200,
+			useNativeDriver: true,
+		}).start();
+	}, [expanded, rotateAnim]);
+
+	const rotateInterpolate = rotateAnim.interpolate({
+		inputRange: [0, 1],
+		outputRange: ["0deg", "180deg"],
+	});
+
 	return (
-		<View style={styles.card}>
-			<TouchableOpacity onPress={toggleExpand} activeOpacity={0.7}>
+		<Animated.View style={[styles.card, { transform: [{ scale: scaleAnim }] }]}>
+			<TouchableOpacity
+				onPress={toggleExpand}
+				activeOpacity={0.7}
+				onPressIn={onPressIn}
+				onPressOut={onPressOut}
+			>
 				<View style={styles.cardHeader}>
 					<View style={styles.cardHeaderLeft}>
 						{/* Site Icon */}
@@ -398,33 +447,45 @@ const SiteCard = ({ site }) => {
 							<Text style={styles.cardTitle}>{site.name}</Text>
 							<Text style={styles.cardSubtitle}>
 								{site.bins.length} Bin{site.bins.length > 1 ? "s" : ""},{" "}
-								{site.bins.reduce((acc, bin) => acc + bin.devices.length, 0)}{" "}
+								{site.bins.reduce(
+									(acc: number, bin: any) => acc + bin.devices.length,
+									0
+								)}{" "}
 								Device
-								{site.bins.reduce((acc, bin) => acc + bin.devices.length, 0) > 1
+								{site.bins.reduce(
+									(acc: number, bin: any) => acc + bin.devices.length,
+									0
+								) > 1
 									? "s"
 									: ""}
 							</Text>
 						</View>
 					</View>
-					{/* Expand/Collapse Icon */}
-					<MaterialIcons
-						name={expanded ? "expand-less" : "expand-more"}
-						size={24}
-						color={Colors.primary}
-						style={[styles.expandIcon, expanded && styles.expandIconRotated]}
-					/>
+					{/* Expand/Collapse Icon with Rotation Animation */}
+					<Animated.View
+						style={{
+							transform: [{ rotate: rotateInterpolate }],
+						}}
+					>
+						<MaterialIcons
+							name="expand-more"
+							size={24}
+							color={Colors.primary}
+							style={styles.expandIcon}
+						/>
+					</Animated.View>
 				</View>
 			</TouchableOpacity>
 
 			{/* Expanded Content */}
 			{expanded && (
 				<View style={styles.cardContent}>
-					{site.bins.map((bin) => (
+					{site.bins.map((bin: any) => (
 						<BinCard key={bin.id} bin={bin} />
 					))}
 				</View>
 			)}
-		</View>
+		</Animated.View>
 	);
 };
 
@@ -433,6 +494,9 @@ const SiteCard = ({ site }) => {
  */
 const BinCard = ({ bin }) => {
 	const [expanded, setExpanded] = useState(false);
+	const fadeAnim = useRef(new Animated.Value(0)).current;
+	const scaleAnim = useRef(new Animated.Value(1)).current;
+	const rotateAnim = useRef(new Animated.Value(0)).current;
 
 	/**
 	 * Toggles the expanded state of the bin card
@@ -440,11 +504,72 @@ const BinCard = ({ bin }) => {
 	const toggleExpand = () => {
 		LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 		setExpanded(!expanded);
+
+		if (!expanded) {
+			Animated.timing(fadeAnim, {
+				toValue: 1,
+				duration: 300,
+				useNativeDriver: true,
+			}).start();
+		} else {
+			Animated.timing(fadeAnim, {
+				toValue: 0,
+				duration: 300,
+				useNativeDriver: true,
+			}).start();
+		}
 	};
 
+	/**
+	 * Handles press in animation
+	 */
+	const onPressIn = () => {
+		Animated.spring(scaleAnim, {
+			toValue: 0.97,
+			friction: 3,
+			tension: 40,
+			useNativeDriver: true,
+		}).start();
+	};
+
+	/**
+	 * Handles press out animation
+	 */
+	const onPressOut = () => {
+		Animated.spring(scaleAnim, {
+			toValue: 1,
+			friction: 3,
+			tension: 40,
+			useNativeDriver: true,
+		}).start();
+	};
+
+	/**
+	 * Handles rotation animation for the expand icon
+	 */
+	useEffect(() => {
+		Animated.timing(rotateAnim, {
+			toValue: expanded ? 1 : 0,
+			duration: 200,
+			useNativeDriver: true,
+		}).start();
+	}, [expanded, rotateAnim]);
+
+	const rotateInterpolate = rotateAnim.interpolate({
+		inputRange: [0, 1],
+		outputRange: ["0deg", "180deg"],
+	});
+
 	return (
-		<View style={styles.binCard}>
-			<TouchableOpacity onPress={toggleExpand} activeOpacity={0.7}>
+		<Animated.View
+			style={[styles.binCard, { transform: [{ scale: scaleAnim }] }]}
+		>
+			<TouchableOpacity
+				onPress={toggleExpand}
+				activeOpacity={0.7}
+				onPressIn={onPressIn}
+				onPressOut={onPressOut}
+			>
 				<View style={styles.binHeader}>
 					<View style={styles.binHeaderLeft}>
 						{/* Bin Icon */}
@@ -461,25 +586,31 @@ const BinCard = ({ bin }) => {
 							</Text>
 						</View>
 					</View>
-					{/* Expand/Collapse Icon */}
-					<MaterialIcons
-						name={expanded ? "expand-less" : "expand-more"}
-						size={24}
-						color={Colors.primary}
-						style={[styles.expandIcon, expanded && styles.expandIconRotated]}
-					/>
+					{/* Expand/Collapse Icon with Rotation Animation */}
+					<Animated.View
+						style={{
+							transform: [{ rotate: rotateInterpolate }],
+						}}
+					>
+						<MaterialIcons
+							name="expand-more"
+							size={24}
+							color={Colors.primary}
+							style={styles.expandIcon}
+						/>
+					</Animated.View>
 				</View>
 			</TouchableOpacity>
 
-			{/* Expanded Device List */}
+			{/* Expanded Device List with Fade-in Animation */}
 			{expanded && (
-				<View style={styles.deviceList}>
-					{bin.devices.map((device) => (
+				<Animated.View style={[styles.deviceList, { opacity: fadeAnim }]}>
+					{bin.devices.map((device: any) => (
 						<DeviceItem key={device.id} device={device} />
 					))}
-				</View>
+				</Animated.View>
 			)}
-		</View>
+		</Animated.View>
 	);
 };
 
@@ -487,11 +618,13 @@ const BinCard = ({ bin }) => {
  * DeviceItem Component representing each device within a bin
  */
 const DeviceItem = ({ device }) => {
+	const router = useRouter();
 	/**
 	 * Handles press events on a device item
 	 */
 	const handlePress = () => {
 		// Implement navigation logic here
+		router.push(`/devices/${device.id}`); // Example route
 		console.log(`Pressed on ${device.name}`);
 	};
 
@@ -514,7 +647,12 @@ const DeviceItem = ({ device }) => {
 						color={Colors.sensorTemp}
 					/>
 					{/* Added humidity icon */}
-					<FontAwesome5 name="water" size={20} color={Colors.sensorHumidity} />
+					<FontAwesome5
+						name="water"
+						size={20}
+						color={Colors.sensorHumidity}
+						style={styles.waterIcon}
+					/>
 				</View>
 			);
 		}
@@ -612,15 +750,6 @@ const DeviceItem = ({ device }) => {
 };
 
 /**
- * CustomMapView Component to display sites on a map
- * Modified to handle web platform by showing a placeholder message
- */
-/**
- * CustomMapView Component to display sites on a map
- * Conditionally renders MapView for native platforms or a placeholder for web.
- */
-
-/**
  * Stylesheet for the component
  */
 const styles = StyleSheet.create({
@@ -628,16 +757,21 @@ const styles = StyleSheet.create({
 		flex: 1,
 		backgroundColor: Colors.background,
 	},
-	header: {
-		paddingVertical: 20,
-		paddingHorizontal: 20,
-		backgroundColor: Colors.primary,
+	centered: {
+		flex: 1,
+		justifyContent: "center",
 		alignItems: "center",
 	},
-	headerTitle: {
-		fontSize: Fonts.header.fontSize,
-		fontWeight: Fonts.header.fontWeight,
-		color: Colors.cardBackground,
+	retryButton: {
+		paddingVertical: 10,
+		paddingHorizontal: 20,
+		backgroundColor: Colors.primary,
+		borderRadius: 8,
+	},
+	retryButtonText: {
+		color: "#FFFFFF",
+		fontSize: Fonts.body.fontSize,
+		fontWeight: "500",
 	},
 	tabBar: {
 		flexDirection: "row",
@@ -708,7 +842,7 @@ const styles = StyleSheet.create({
 		marginTop: 4,
 	},
 	expandIcon: {
-		transform: [{ rotate: "0deg" }],
+		// Removed static rotation
 	},
 	expandIconRotated: {
 		transform: [{ rotate: "180deg" }],

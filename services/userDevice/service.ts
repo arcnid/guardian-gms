@@ -2,6 +2,7 @@ import { getSupabaseClient } from "@/services/supabaseClient";
 import { DateTime } from "luxon";
 import { linkDeviceToUser } from "./addDevice";
 import { largestTriangleThreeBuckets } from "@/utils/largestTriangleThreeBuckets";
+import { transformOrigin } from "@shopify/react-native-skia";
 
 type HistoryOption = "1D" | "1W" | "1M" | "3M" | "6M" | "1Y" | "MAX";
 interface GetDeviceLogsParams {
@@ -194,12 +195,8 @@ export const UserDeviceService = {
 			throw error;
 		}
 
-		console.log("Fetched Data:", data);
-
 		// Reduce the data for performance (adjust the bucket size as needed)
 		const reducedSet = largestTriangleThreeBuckets(data, 10); // Adjust bucket size as needed
-
-		console.log("Reduced set:", reducedSet);
 
 		// Return fromDate, toDate, and reduced data
 		return {
@@ -327,8 +324,6 @@ export const UserDeviceService = {
 
 			const url = response.data.publicUrl;
 
-			console.log("url", url);
-
 			return url;
 		} catch (e) {
 			console.error(e);
@@ -352,17 +347,11 @@ export const UserDeviceService = {
 				.select("*")
 				.in("device_id", [...deviceList]);
 
-			console.log("response, ", profiles);
-
-			console.log("profile Error", profileError?.code);
-
 			if (profileError) {
 				console.log("not found");
 				console.error("Error fetching device profiles:", profileError);
 				throw profileError;
 			}
-
-			console.log("Fetched device profiles:", profiles);
 
 			// Step 2: Create a map of device_id to image_url
 			const deviceImageMap = new Map<string, string>();
@@ -383,8 +372,6 @@ export const UserDeviceService = {
 				console.error("Error fetching devices:", error);
 			}
 
-			console.log("Fetched devices:", devices);
-
 			// Step 4: Enrich devices with image URLs
 			const devicesWithImages = await Promise.all(
 				devices?.map(async (device) => {
@@ -399,13 +386,57 @@ export const UserDeviceService = {
 				}) || []
 			);
 
-			console.log("Devices with images:", devicesWithImages);
-
 			return devicesWithImages;
 		} catch (error) {
 			console.error("Error in getDevicesWithImage:", error);
 			return [];
 		}
 		//
+	},
+	getDeviceWithLatestLog: async (deviceId: string) => {
+		const client = getSupabaseClient();
+		try {
+			const device = await UserDeviceService.getDevice(deviceId);
+
+			const latestLog = await UserDeviceService.getLatestTemp(deviceId);
+
+			console.log("getting latest log on deviece", latestLog);
+
+			//transform structure to get latest log into device object
+
+			const transformedObject = {
+				id: device.device_id,
+				name: device.device_name,
+				type: device.device_type,
+				humidity: latestLog[0].humid_sensor_reading,
+				temperature: latestLog[0].temp_sensor_reading,
+				lastRead: latestLog[0].created_at,
+				isOnline: device.status === "Online",
+			};
+
+			return transformedObject;
+		} catch (e) {
+			console.error(e);
+		}
+	},
+
+	getDevicesOnBin: async (binId: string) => {
+		const client = getSupabaseClient();
+
+		try {
+			const { data, error } = await client
+				.from("userdevices")
+				.select("*")
+				.eq("bin_id", binId);
+
+			if (error) {
+				console.error("Error fetching devices on bin:", error);
+				throw error;
+			}
+
+			return data;
+		} catch (e) {
+			console.error(e);
+		}
 	},
 };

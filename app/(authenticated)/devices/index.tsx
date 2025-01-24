@@ -34,6 +34,8 @@ const DevicesScreen = () => {
 
 	const { userId } = useContext(AuthContext);
 
+	console.log("user", userId);
+
 	// Combined function to fetch devices and their images
 	const fetchDevicesAndImages = useCallback(async () => {
 		try {

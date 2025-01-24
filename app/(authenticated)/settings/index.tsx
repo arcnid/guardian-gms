@@ -1,5 +1,5 @@
 // app/(authenticated)/settings.js
-import React from "react";
+import React, { useContext } from "react";
 import {
 	View,
 	Text,
@@ -10,53 +10,71 @@ import {
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-const settingsOptions = [
-	{
-		id: "1",
-		title: "Profile",
-		icon: "person",
-	},
-	{
-		id: "2",
-		title: "Notifications",
-		icon: "notifications",
-	},
-	{
-		id: "3",
-		title: "Privacy",
-		icon: "lock",
-	},
-	{
-		id: "4",
-		title: "Security",
-		icon: "security",
-	},
-	{
-		id: "5",
-		title: "Language",
-		icon: "language",
-	},
-	{
-		id: "6",
-		title: "Help & Support",
-		icon: "help-outline",
-	},
-	{
-		id: "7",
-		title: "About",
-		icon: "info-outline",
-	},
-];
+import { AuthContext } from "@/contexts/AuthContext";
 
 const SettingsScreen = () => {
 	const router = useRouter();
+	const { userId } = useContext(AuthContext); // Get user ID from AuthContext
+	console.log("user", userId);
+
+	const getProfileRoute = () => {
+		return `/dashboard/users/${userId}`;
+	};
+
+	const settingsOptions = [
+		{
+			id: "1",
+			title: "Profile",
+			icon: "person",
+			route: getProfileRoute(), // Explicit route
+		},
+		{
+			id: "2",
+			title: "Scheduled Actions",
+			icon: "schedule",
+			route: "/settings/actions", // Custom route for this item
+		},
+		{
+			id: "3",
+			title: "Notifications",
+			icon: "notifications",
+		},
+		{
+			id: "4",
+			title: "Privacy",
+			icon: "lock",
+		},
+		{
+			id: "5",
+			title: "Security",
+			icon: "security",
+		},
+
+		{
+			id: "7",
+			title: "Help & Support",
+			icon: "help-outline",
+			route: "/settings/help", // Custom route for this item
+		},
+		{
+			id: "8",
+			title: "About",
+			icon: "info-outline",
+		},
+		{
+			id: "9",
+			title: "Logout",
+			icon: "exit-to-app",
+			route: "/logout", // Explicit route for Logout
+		},
+	];
 
 	const handleOptionPress = (option) => {
-		console.log(`Selected option: ${option.title}`);
-		// Navigate to the specific settings screen
-		const routeName = option.title.toLowerCase().replace(/\s+/g, "-");
-		router.push(`/settings/${routeName}`);
+		const route =
+			option.route ||
+			`/settings/${option.title.toLowerCase().replace(/\s+/g, "-")}`;
+		console.log(`Navigating to: ${route}`);
+		router.push(route);
 	};
 
 	return (
