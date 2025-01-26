@@ -3,8 +3,6 @@ import { UserDeviceService } from "@/services/userDevice/service";
 
 export const binService = {
 	getBinsForLocation: async (locationId: string) => {
-		console.log("getting bins for location", locationId);
-
 		// locationId = "7f76cd8f-ec85-4ad8-9dc6-65f8b1e6aa6";
 		try {
 			const supabase = getSupabaseClient();
@@ -14,8 +12,6 @@ export const binService = {
 				.eq("location_id", locationId);
 
 			if (error) throw error;
-
-			const additional = await binService.getDevicesOnBin(data[0].id);
 
 			return data;
 		} catch (e) {

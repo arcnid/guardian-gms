@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, Platform } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -18,56 +18,69 @@ const customIcon = new L.Icon({
  * @param {Array} data - Array of location objects fetched from the service
  * @param {Function} onMarkerPress - Function to handle marker press events
  */
-const CustomMapView = ({ data, onMarkerPress }) => {
+export default function CustomMapView({ data, onMarkerPress }) {
 	try {
-		const defaultCenter = [
-			data[0]?.latitude || 43.509,
-			data[0]?.longitude || -96.9568,
-		];
+		// Ensure data is an array and filter out invalid sites
+		const validData = Array.isArray(data)
+			? data.filter(
+					(site) => site && site.latitude != null && site.longitude != null
+				)
+			: [];
+
+		// Use the first site as the default center, or fallback
+		const defaultCenter =
+			validData.length > 0
+				? [validData[0].latitude || 43.509, validData[0].longitude || -96.9568]
+				: [43.509, -96.9568];
 
 		return (
 			<View style={styles.mapWrapper}>
 				<MapContainer
 					center={defaultCenter}
 					zoom={7}
-					scrollWheelZoom={true}
+					scrollWheelZoom
 					style={styles.mapContainer}
 				>
 					<TileLayer
 						url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
 						attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 					/>
-					{data.map((site) => (
-						<Marker
-							key={site.id}
-							position={[site.latitude, site.longitude]}
-							icon={customIcon} // Use the custom icon here
-							eventHandlers={{
-								click: () => onMarkerPress(site),
-							}}
-						>
-							<Popup>
-								<View style={styles.popupContainer}>
-									<Text style={styles.popupTitle}>{site.name}</Text>
-									<Text style={styles.popupDetails}>
-										{site.bins.length} Bin
-										{site.bins.length > 1 ? "s" : ""},{" "}
-										{site.bins.reduce(
-											(acc: number, bin: any) => acc + bin.devices.length,
-											0
-										)}{" "}
-										Device
-										{site.bins.reduce(
-											(acc: number, bin: any) => acc + bin.devices.length,
-											0
-										) > 1
-											? "s"
-											: ""}
-									</Text>
-								</View>
-							</Popup>
-						</Marker>
-					))}
+					{validData.map((site) => {
+						// Count bins/devices safely
+						const binCount = Array.isArray(site.bins) ? site.bins.length : 0;
+						const deviceCount = Array.isArray(site.bins)
+							? site.bins.reduce((acc, bin) => {
+									if (bin && Array.isArray(bin.devices)) {
+										return acc + bin.devices.filter(Boolean).length;
+									}
+									return acc;
+								}, 0)
+							: 0;
+
+						return (
+							<Marker
+								key={site.id}
+								position={[site.latitude, site.longitude]}
+								icon={customIcon}
+								eventHandlers={{
+									click: () => onMarkerPress(site),
+								}}
+							>
+								<Popup>
+									<View style={styles.popupContainer}>
+										<Text style={styles.popupTitle}>
+											{site.name || "Unnamed Site"}
+										</Text>
+										<Text style={styles.popupDetails}>
+											{binCount} Bin{binCount !== 1 ? "s" : ""}, {deviceCount}{" "}
+											Device
+											{deviceCount !== 1 ? "s" : ""}
+										</Text>
+									</View>
+								</Popup>
+							</Marker>
+						);
+					})}
 				</MapContainer>
 			</View>
 		);
@@ -81,15 +94,31 @@ const CustomMapView = ({ data, onMarkerPress }) => {
 			</View>
 		);
 	}
-};
+}
 
 const styles = StyleSheet.create({
 	mapWrapper: {
 		flex: 1,
 	},
 	mapContainer: {
-		height: "100%",
 		width: "100%",
+		height: "100%",
+	},
+	popupContainer: {
+		padding: 0,
+		backgroundColor: "#ffffff",
+		borderRadius: 6,
+		maxWidth: 300,
+	},
+	popupTitle: {
+		fontWeight: "600",
+		fontSize: 16,
+		marginBottom: 4,
+	},
+	popupDetails: {
+		fontSize: 14,
+		color: "#444",
+		lineHeight: 18,
 	},
 	errorContainer: {
 		flex: 1,
@@ -101,23 +130,4 @@ const styles = StyleSheet.create({
 		color: "#721c24",
 		fontSize: 16,
 	},
-	popupContainer: {
-		padding: 0, // Simplified padding
-		backgroundColor: "#ffffff", // Clean white background
-		borderRadius: 6, // Slightly rounded corners
-		maxWidth: 300, // Reasonable width for readability
-	},
-	popupTitle: {
-		fontWeight: "600", // Medium weight for cleaner look
-		fontSize: 16, // Balanced font size
-		color: "#000000",
-		marginBottom: 4, // Slight spacing below the title
-	},
-	popupDetails: {
-		fontSize: 14,
-		color: "#444444", // Subtle gray for details
-		lineHeight: 18, // Better readability
-	},
 });
-
-export default CustomMapView;

@@ -1,5 +1,4 @@
 // components/devices/RecentSensorData.tsx
-
 import React, { useEffect, useState, useRef } from "react";
 import {
 	View,
@@ -69,46 +68,51 @@ interface RecentSensorDataProps {
  */
 export const RecentSensorData: React.FC<RecentSensorDataProps> = ({
 	deviceId,
-	refreshCounter, // Receive the new prop
+	refreshCounter,
 }) => {
 	const [latestLog, setLatestLog] = useState<LogEntry | null>(null);
 	const [timeAgoString, setTimeAgoString] = useState<string>("N/A");
 	const [loading, setLoading] = useState<boolean>(true);
 	const [error, setError] = useState<string | null>(null);
-	const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+	// IMPORTANT: Use a numeric or “ReturnType<typeof setInterval>” ref instead of NodeJS.Timeout
+	const intervalRef = useRef<number | null>(null);
+
+	// Keep a reference to the Realtime subscription, if needed
 	const subscriptionRef = useRef<RealtimeChannel | null>(null);
+
+	// Track app state
 	const appState = useRef<AppStateStatus>(AppState.currentState);
+
+	// Supabase client
 	const supabaseClient: SupabaseClient = getSupabaseClient();
 
 	/**
 	 * Fetch the latest log entry for the device
 	 */
 	const fetchLatestLog = async () => {
-		console.log("Fetching latest log for deviceId:", deviceId); // Debugging
+		console.log("Fetching latest log for deviceId:", deviceId);
 		try {
-			const { data, error } = await supabaseClient
+			const { data, error: supabaseError } = await supabaseClient
 				.from<LogEntry>("deviceLogs") // Ensure table name is correct
 				.select("*")
 				.eq("device_id", deviceId)
 				.order("created_at", { ascending: false })
 				.limit(1);
 
-			console.log("Fetch response data:", data); // Debugging
+			console.log("Fetch response data:", data);
 
-			if (error) {
-				console.error("Error fetching latest log:", error);
+			if (supabaseError) {
+				console.error("Error fetching latest log:", supabaseError);
 				setError("Failed to fetch latest log.");
 				return;
 			}
 
 			if (data && data.length > 0) {
-				console.log("Latest Log:", data[0]); // Debugging
-				console.log("Temperature:", data[0].temp_sensor_reading); // Debugging
-				console.log("Humidity:", data[0].humid_sensor_reading); // Debugging
 				setLatestLog(data[0]);
 				setTimeAgoString(timeAgo(data[0].created_at));
 			} else {
-				console.log("No logs found for deviceId:", deviceId); // Debugging
+				console.log("No logs found for deviceId:", deviceId);
 				setLatestLog(null);
 				setTimeAgoString("N/A");
 			}
@@ -124,9 +128,9 @@ export const RecentSensorData: React.FC<RecentSensorDataProps> = ({
 	 * Subscribe to real-time log insertions for the device
 	 */
 	const subscribeToNewLogs = () => {
-		// Create a unique channel name based on deviceId and refreshCounter to avoid conflicts
+		// Create a unique channel name based on deviceId and refreshCounter
 		const channelName = `device-logs-${deviceId}-${refreshCounter}`;
-		console.log("Subscribing to channel:", channelName); // Debugging
+		console.log("Subscribing to channel:", channelName);
 
 		const subscription = supabaseClient
 			.channel(channelName)
@@ -149,15 +153,12 @@ export const RecentSensorData: React.FC<RecentSensorDataProps> = ({
 				if (status === "SUBSCRIBED") {
 					console.log("Connected to Supabase Realtime!");
 				}
-
 				if (status === "CHANNEL_ERROR") {
 					console.log("There was an error subscribing to the channel.");
 				}
-
 				if (status === "TIMED_OUT") {
 					console.log("Realtime server did not respond in time.");
 				}
-
 				if (status === "CLOSED") {
 					console.log("Realtime channel was unexpectedly closed.");
 				}
@@ -170,14 +171,17 @@ export const RecentSensorData: React.FC<RecentSensorDataProps> = ({
 	 * Cleanup Supabase subscription and timer
 	 */
 	const cleanupResources = () => {
+		// Unsubscribe if subscription exists
 		if (subscriptionRef.current) {
 			supabaseClient.removeChannel(subscriptionRef.current);
-			console.log("Unsubscribed from channel:", subscriptionRef.current); // Debugging
+			console.log("Unsubscribed from channel:", subscriptionRef.current);
 			subscriptionRef.current = null;
 		}
-		if (intervalRef.current) {
+
+		// Clear interval if it exists
+		if (intervalRef.current !== null) {
 			clearInterval(intervalRef.current);
-			console.log("Cleared interval"); // Debugging
+			console.log("Cleared interval");
 			intervalRef.current = null;
 		}
 	};
@@ -191,18 +195,18 @@ export const RecentSensorData: React.FC<RecentSensorDataProps> = ({
 			deviceId,
 			"refreshCounter:",
 			refreshCounter
-		); // Debugging
+		);
 		fetchLatestLog();
 		subscribeToNewLogs();
 
 		// Handler for app state changes
 		const handleAppStateChange = (nextAppState: AppStateStatus) => {
+			// If the app comes from background to foreground, refresh data
 			if (
 				appState.current.match(/inactive|background/) &&
 				nextAppState === "active"
 			) {
 				console.log("App has come to the foreground!");
-				// Re-fetch latest log when app comes to foreground
 				fetchLatestLog();
 			}
 			appState.current = nextAppState;
@@ -220,7 +224,7 @@ export const RecentSensorData: React.FC<RecentSensorDataProps> = ({
 			// Remove app state listener
 			appStateSubscription.remove();
 		};
-	}, [deviceId, refreshCounter]); // Added refreshCounter
+	}, [deviceId, refreshCounter]);
 
 	/**
 	 * Update "Last Reading" every second
@@ -228,8 +232,7 @@ export const RecentSensorData: React.FC<RecentSensorDataProps> = ({
 	useEffect(() => {
 		const updateTimeAgo = () => {
 			if (latestLog) {
-				const newTimeAgo = timeAgo(latestLog.created_at);
-				setTimeAgoString(newTimeAgo);
+				setTimeAgoString(timeAgo(latestLog.created_at));
 			} else {
 				setTimeAgoString("N/A");
 			}
@@ -239,14 +242,16 @@ export const RecentSensorData: React.FC<RecentSensorDataProps> = ({
 		updateTimeAgo();
 
 		// Set interval to update every second
-		intervalRef.current = setInterval(updateTimeAgo, 1000); // 1 second
-		console.log("Interval set for updating timeAgoString"); // Debugging
+		const id = setInterval(updateTimeAgo, 1000);
+		intervalRef.current = id as unknown as number; // or just (id as number)
+
+		console.log("Interval set for updating timeAgoString");
 
 		// Cleanup interval on unmount or when latestLog changes
 		return () => {
-			if (intervalRef.current) {
+			if (intervalRef.current !== null) {
 				clearInterval(intervalRef.current);
-				console.log("Cleared interval"); // Debugging
+				console.log("Cleared interval");
 				intervalRef.current = null;
 			}
 		};
@@ -324,11 +329,10 @@ const styles = StyleSheet.create({
 		padding: 16,
 		borderRadius: 10,
 		elevation: 3,
-		marginBottom: 15, // Added margin for spacing
+		marginBottom: 15,
 		marginTop: 5,
 		paddingBottom: 10,
 	},
-	// Updated sensorRow to align items vertically centered and space between label and value
 	sensorRow: {
 		flexDirection: "row",
 		alignItems: "center",
@@ -344,13 +348,13 @@ const styles = StyleSheet.create({
 	label: {
 		fontSize: 16,
 		color: "#333",
-		flex: 1, // Ensure the label takes available space
+		flex: 1,
 	},
 	value: {
 		fontSize: 16,
 		color: "#333",
 		textAlign: "right",
-		flex: 1, // Ensure the value takes available space
+		flex: 1,
 	},
 	sectionHeader: {
 		fontSize: 18,

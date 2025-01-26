@@ -14,9 +14,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
-import { AuthContext } from "@/contexts/AuthContext"; // Ensure this path is correct
-import BackButton from "@/components/BackButton"; // Ensure this component exists
-import { AuthService } from "@/services/authService"; // Ensure this path is correct
+import { AuthContext } from "@/contexts/AuthContext";
+import BackButton from "@/components/BackButton";
+import { AuthService } from "@/services/authService";
 
 const ProfileScreen = () => {
 	const router = useRouter();
@@ -31,8 +31,16 @@ const ProfileScreen = () => {
 	const fetchUserData = useCallback(async () => {
 		try {
 			setError(null);
+			console.log("Attempting to fetch user data...");
 			const { data } = await AuthService.getCurrentUser();
-			setUserData(data.user);
+			console.log("Fetched User Data:", data); // Debugging log
+			if (data && data.user) {
+				setUserData(data.user);
+				console.log("User data set successfully.");
+			} else {
+				console.warn("User data is missing in the response.");
+				setError("User data is incomplete.");
+			}
 		} catch (err) {
 			console.error("Error fetching user data:", err);
 			setError("Failed to load user data. Please try again.");
@@ -45,10 +53,32 @@ const ProfileScreen = () => {
 		fetchUserData();
 	}, [fetchUserData]);
 
+	// Optional: Alert if user_metadata is missing
+	useEffect(() => {
+		if (!loading && userData && !userData.user_metadata) {
+			Alert.alert(
+				"Incomplete Profile",
+				"Your profile information is incomplete. Please update your profile.",
+				[
+					{
+						text: "Update Profile",
+						onPress: handleEditProfile,
+					},
+					{
+						text: "Cancel",
+						style: "cancel",
+					},
+				]
+			);
+		}
+	}, [loading, userData]);
+
 	// Handle logout
 	const handleLogout = async () => {
 		try {
+			console.log("Initiating logout...");
 			await logout(); // Clear authentication state
+			console.log("Logout successful. Redirecting to login.");
 			router.replace("/login"); // Redirect to Login screen
 		} catch (err) {
 			console.error("Error during logout:", err);
@@ -59,6 +89,7 @@ const ProfileScreen = () => {
 	// Handle navigation to edit profile
 	const handleEditProfile = () => {
 		// Navigate to the Edit Profile screen or show a placeholder
+		console.log("Navigating to Edit Profile screen.");
 		Alert.alert(
 			"Edit Profile",
 			"This will navigate to the Edit Profile screen."
@@ -70,6 +101,7 @@ const ProfileScreen = () => {
 	// Handle navigation to change password
 	const handleChangePassword = () => {
 		// Navigate to the Change Password screen or show a placeholder
+		console.log("Navigating to Change Password screen.");
 		Alert.alert(
 			"Change Password",
 			"This will navigate to the Change Password screen."
@@ -81,9 +113,14 @@ const ProfileScreen = () => {
 	// Handle toggling notifications
 	const toggleNotifications = () => {
 		setIsNotificationsEnabled((previousState) => !previousState);
+		console.log(
+			`Notifications have been ${!isNotificationsEnabled ? "enabled" : "disabled"}.`
+		);
 		Alert.alert(
 			"Notifications",
-			`Notifications have been ${!isNotificationsEnabled ? "enabled" : "disabled"}.`,
+			`Notifications have been ${
+				!isNotificationsEnabled ? "enabled" : "disabled"
+			}.`,
 			[{ text: "OK" }]
 		);
 		// Optionally, persist this preference using AsyncStorage or update your backend
@@ -92,6 +129,7 @@ const ProfileScreen = () => {
 	// Handle toggling dark mode
 	const toggleDarkMode = () => {
 		setIsDarkMode((previousState) => !previousState);
+		console.log(`Dark mode has been ${!isDarkMode ? "enabled" : "disabled"}.`);
 		Alert.alert(
 			"Dark Mode",
 			`Dark mode has been ${!isDarkMode ? "enabled" : "disabled"}.`,
@@ -101,6 +139,7 @@ const ProfileScreen = () => {
 	};
 
 	if (loading) {
+		console.log("Loading user data...");
 		return (
 			<SafeAreaView style={styles.loadingContainer}>
 				<ActivityIndicator size="large" color="#71A12F" />
@@ -109,6 +148,7 @@ const ProfileScreen = () => {
 	}
 
 	if (error) {
+		console.log("Error state reached:", error);
 		return (
 			<SafeAreaView style={styles.errorContainer}>
 				<Text style={styles.errorText}>{error}</Text>
@@ -119,36 +159,33 @@ const ProfileScreen = () => {
 		);
 	}
 
-	const getLastRoute = () => {
-		// This function should return the last route name
-		return "dashboard"; // Replace with your logic to get the last route
-	};
+	console.log("Rendering user data on ProfileScreen.");
 
 	return (
 		<SafeAreaView style={styles.container}>
-			{/* Header with Back Button */}
 			<View style={styles.headerContainer}>
-				<BackButton label="Back" route={getLastRoute()} />
-				{/* Placeholder for alignment */}
-				<View style={{ width: 24 }} /> {/* To balance the BackButton */}
+				<BackButton />
+				<View style={{ width: 24 }} />
 			</View>
 
-			{/* Profile Content */}
 			<ScrollView contentContainerStyle={styles.scrollContent}>
-				{/* User Information */}
 				<View style={styles.userInfoContainer}>
 					<Image
 						source={{
 							uri:
-								userData.user_metadata.avatar_url ||
+								userData?.user_metadata?.avatar_url ||
 								"https://via.placeholder.com/150",
 						}}
 						style={styles.avatar}
 					/>
 					<Text style={styles.userName}>
-						{userData.user_metadata.full_name || userData.email.split("@")[0]}
+						{userData?.user_metadata?.full_name ||
+							userData?.email?.split("@")[0] ||
+							"User"}
 					</Text>
-					<Text style={styles.userEmail}>{userData.email}</Text>
+					<Text style={styles.userEmail}>
+						{userData?.email || "email@example.com"}
+					</Text>
 					<TouchableOpacity
 						onPress={handleEditProfile}
 						style={styles.editProfileButton}
@@ -158,11 +195,9 @@ const ProfileScreen = () => {
 					</TouchableOpacity>
 				</View>
 
-				{/* Settings */}
 				<View style={styles.settingsContainer}>
 					<Text style={styles.sectionTitle}>Settings</Text>
 
-					{/* Change Password */}
 					<TouchableOpacity
 						onPress={handleChangePassword}
 						style={styles.settingItem}
@@ -172,7 +207,6 @@ const ProfileScreen = () => {
 						<MaterialIcons name="chevron-right" size={24} color="#666" />
 					</TouchableOpacity>
 
-					{/* Notifications */}
 					<View style={styles.settingItem}>
 						<MaterialIcons name="notifications" size={24} color="#71A12F" />
 						<Text style={styles.settingText}>Notifications</Text>
@@ -185,7 +219,6 @@ const ProfileScreen = () => {
 						/>
 					</View>
 
-					{/* Dark Mode */}
 					<View style={styles.settingItem}>
 						<MaterialIcons name="brightness-6" size={24} color="#71A12F" />
 						<Text style={styles.settingText}>Dark Mode</Text>
@@ -199,7 +232,6 @@ const ProfileScreen = () => {
 					</View>
 				</View>
 
-				{/* Logout Button */}
 				<TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
 					<Text style={styles.logoutButtonText}>Log Out</Text>
 				</TouchableOpacity>
@@ -210,7 +242,7 @@ const ProfileScreen = () => {
 
 export default ProfileScreen;
 
-// Stylesheet
+// Stylesheet remains unchanged
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,

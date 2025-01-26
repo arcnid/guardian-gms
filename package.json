@@ -75,7 +75,8 @@
     "sp-react-native-mqtt": "^0.5.1",
     "uuid": "^11.0.3",
     "victory": "^37.3.5",
-    "victory-native": "^41.14.0"
+    "victory-native": "^41.14.0",
+    "expo-haptics": "~14.0.1"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

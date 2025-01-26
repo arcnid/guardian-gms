@@ -238,8 +238,6 @@ export const UserDeviceService = {
 					upsert: true,
 				});
 
-			console.log("upload Data", uploadData);
-
 			if (uploadError) {
 				console.error("Error uploading image:", uploadError.message);
 				throw new Error("Image upload failed");
@@ -249,8 +247,6 @@ export const UserDeviceService = {
 			const { data: publicUrlData, error: publicUrlError } = client.storage
 				.from("Images")
 				.getPublicUrl(fileName);
-
-			console.log("publicURl", publicUrlData.publicUrl);
 
 			if (publicUrlError) {
 				console.error("Error getting public URL:", publicUrlError.message);
@@ -338,8 +334,6 @@ export const UserDeviceService = {
 
 		//look to see if there is a record inside of 'deviceprofiles' and if it has a image_url set, if it does, grab it and add it to the return list
 
-		console.log("gonna look for profile record for ", deviceList);
-
 		try {
 			// Step 1: Fetch device profiles to check for image_url
 			const { data: profiles, error: profileError } = await client
@@ -396,13 +390,29 @@ export const UserDeviceService = {
 	getDeviceWithLatestLog: async (deviceId: string) => {
 		const client = getSupabaseClient();
 		try {
+			console.log("getting device with latest log");
 			const device = await UserDeviceService.getDevice(deviceId);
 
 			const latestLog = await UserDeviceService.getLatestTemp(deviceId);
 
-			console.log("getting latest log on deviece", latestLog);
+			console.log("latest log", latestLog);
+
+			if (!latestLog || latestLog.length === 0) {
+				//attempt to get regular device details
+				console.log("no logs found");
+				return {
+					id: device.device_id,
+					name: device.device_name,
+					type: device.device_type,
+					humidity: undefined,
+					temperature: undefined,
+					lastRead: "N/A",
+					isOnline: device.status === "Online",
+				};
+			}
 
 			//transform structure to get latest log into device object
+			console.log("getting device with latest log");
 
 			const transformedObject = {
 				id: device.device_id,
