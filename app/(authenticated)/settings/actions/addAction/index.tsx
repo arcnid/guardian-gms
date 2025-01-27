@@ -14,6 +14,7 @@ import {
 	Keyboard,
 	ActivityIndicator,
 	SafeAreaView,
+	Modal,
 } from "react-native";
 import { MaterialIcons, AntDesign } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -99,6 +100,40 @@ const AddAction = () => {
 	const [metricsCompLoading, setMetricsCompLoading] = useState(false);
 
 	const [isFocusTriggerType, setIsFocusTriggerType] = useState(false);
+
+	/* ----------------------------------------------------------------
+	 * Metric Icons Mapping
+	 * ---------------------------------------------------------------- */
+	const metricIcons = {
+		temp: "thermostat",
+		humidity: "opacity",
+		powerState: "power",
+	};
+
+	/* ----------------------------------------------------------------
+	 * Define Available Actions
+	 * ---------------------------------------------------------------- */
+	const availableActions = [
+		{
+			label: "Send Me a Notification",
+			value: "send_notification",
+			icon: "notifications",
+			description: "Receive a notification when the trigger condition is met.",
+		},
+		{
+			label: "Turn On a Relay Device",
+			value: "turn_on_relay",
+			icon: "power",
+			description: "Automatically turn on a relay device.",
+		},
+		{
+			label: "Turn Off a Relay Device",
+			value: "turn_off_relay",
+			icon: "power-off",
+			description: "Automatically turn off a relay device.",
+		},
+		// Add more actions as needed
+	];
 
 	/* ----------------------------------------------------------------
 	 * Fetch user locations on mount
@@ -266,7 +301,7 @@ const AddAction = () => {
 		};
 
 		fetchDevice2();
-	}, [selectedDevice2Comp, deviceType1]);
+	}, [selectedDevice2Comp, deviceType1, metricsComp]);
 
 	const filteredLocationsForDevice2 = useMemo(() => {
 		if (!deviceType1 || !locations) return locations;
@@ -378,21 +413,23 @@ const AddAction = () => {
 					);
 					return;
 				}
-				if (selectedCondition === "between") {
-					if (!conditionValue || !secondaryConditionValue) {
-						Alert.alert(
-							"Configuration Required",
-							"Please enter both min and max values"
-						);
+				if (selectedMetric !== "powerState") {
+					if (selectedCondition === "between") {
+						if (!conditionValue || !secondaryConditionValue) {
+							Alert.alert(
+								"Configuration Required",
+								"Please enter both min and max values"
+							);
+							return;
+						}
+					} else if (
+						!conditionValue &&
+						selectedCondition !== "eq" &&
+						selectedCondition !== "ne"
+					) {
+						Alert.alert("Configuration Required", "Please enter a value");
 						return;
 					}
-				} else if (
-					!conditionValue &&
-					selectedCondition !== "eq" &&
-					selectedCondition !== "ne"
-				) {
-					Alert.alert("Configuration Required", "Please enter a value");
-					return;
 				}
 			}
 			// 2c) TRIGGERED (Two-Device Comparison)
@@ -413,20 +450,22 @@ const AddAction = () => {
 					);
 					return;
 				}
-				if (differenceCondition === "between") {
-					if (!differenceValue || !differenceValue2) {
+				if (selectedMetricComp !== "powerState") {
+					if (differenceCondition === "between") {
+						if (!differenceValue || !differenceValue2) {
+							Alert.alert(
+								"Configuration Required",
+								"Please enter both min and max difference"
+							);
+							return;
+						}
+					} else if (!differenceValue) {
 						Alert.alert(
 							"Configuration Required",
-							"Please enter both min and max difference"
+							"Please enter a difference value"
 						);
 						return;
 					}
-				} else if (!differenceValue) {
-					Alert.alert(
-						"Configuration Required",
-						"Please enter a difference value"
-					);
-					return;
 				}
 			}
 		}
@@ -445,16 +484,33 @@ const AddAction = () => {
 	};
 
 	/* ----------------------------------------------------------------
-	 * Step 3: Actions
+	 * Step 3 -> Action config
 	 * ---------------------------------------------------------------- */
+	const [isActionModalVisible, setIsActionModalVisible] = useState(false);
+
 	const handleAddAction = () => {
+		setIsActionModalVisible(true);
+	};
+
+	const handleRemoveAction = (index) => {
+		const updated = actions.filter((_, idx) => idx !== index);
+		setActions(updated);
+
+		const focusCopy = { ...actionDropdownFocus };
+		delete focusCopy[index];
+		setActionDropdownFocus(focusCopy);
+	};
+
+	const handleSelectActionType = (actionValue) => {
 		setActions((prev) => [
 			...prev,
 			{
+				id: Date.now(), // Unique identifier
+				action_type: actionValue,
 				location_id: null,
 				bin_id: null,
 				device_id: null,
-				action_type: null,
+				notification_message: "", // For send_notification
 			},
 		]);
 		setActionDropdownFocus((prev) => ({
@@ -466,15 +522,7 @@ const AddAction = () => {
 				actionType: false,
 			},
 		}));
-	};
-
-	const handleRemoveAction = (index) => {
-		const updated = actions.filter((_, idx) => idx !== index);
-		setActions(updated);
-
-		const focusCopy = { ...actionDropdownFocus };
-		delete focusCopy[index];
-		setActionDropdownFocus(focusCopy);
+		setIsActionModalVisible(false);
 	};
 
 	const handleUpdateAction = (index, field, value) => {
@@ -528,46 +576,101 @@ const AddAction = () => {
 				}
 			} else if (actionType === "triggeredSingle") {
 				// SINGLE DEVICE
-				trigger = {
-					type: "single_device",
-					location_id: selectedLocation,
-					bin_id: selectedBin,
-					device_id: selectedDevice,
-					metric: selectedMetric,
-					condition: selectedCondition,
-					value:
-						selectedCondition === "between"
-							? [conditionValue, secondaryConditionValue]
-							: conditionValue,
-				};
+				if (selectedMetric === "powerState") {
+					trigger = {
+						type: "single_device",
+						location_id: selectedLocation,
+						bin_id: selectedBin,
+						device_id: selectedDevice,
+						metric: selectedMetric,
+						condition: selectedCondition,
+						value: selectedCondition === "eq" ? true : false,
+					};
+				} else {
+					trigger = {
+						type: "single_device",
+						location_id: selectedLocation,
+						bin_id: selectedBin,
+						device_id: selectedDevice,
+						metric: selectedMetric,
+						condition: selectedCondition,
+						value:
+							selectedCondition === "between"
+								? [conditionValue, secondaryConditionValue]
+								: conditionValue,
+					};
+				}
 			} else if (actionType === "triggeredComparison") {
 				// TWO DEVICE
-				trigger = {
-					type: "two_device_diff",
-					metric: selectedMetricComp, // Single metric applied to both devices
-					device1: {
-						location_id: selectedLocation1Comp,
-						bin_id: selectedBin1Comp,
-						device_id: selectedDevice1Comp,
-					},
-					device2: {
-						location_id: selectedLocation2Comp,
-						bin_id: selectedBin2Comp,
-						device_id: selectedDevice2Comp,
-					},
-					condition: differenceCondition,
-					value:
-						differenceCondition === "between"
-							? [differenceValue, differenceValue2]
-							: differenceValue,
-				};
+				if (selectedMetricComp === "powerState") {
+					trigger = {
+						type: "two_device_diff",
+						metric: selectedMetricComp, // Single metric applied to both devices
+						device1: {
+							location_id: selectedLocation1Comp,
+							bin_id: selectedBin1Comp,
+							device_id: selectedDevice1Comp,
+						},
+						device2: {
+							location_id: selectedLocation2Comp,
+							bin_id: selectedBin2Comp,
+							device_id: selectedDevice2Comp,
+						},
+						condition: differenceCondition,
+						value: differenceCondition === "eq" ? true : false,
+					};
+				} else {
+					trigger = {
+						type: "two_device_diff",
+						metric: selectedMetricComp, // Single metric applied to both devices
+						device1: {
+							location_id: selectedLocation1Comp,
+							bin_id: selectedBin1Comp,
+							device_id: selectedDevice1Comp,
+						},
+						device2: {
+							location_id: selectedLocation2Comp,
+							bin_id: selectedBin2Comp,
+							device_id: selectedDevice2Comp,
+						},
+						condition: differenceCondition,
+						value:
+							differenceCondition === "between"
+								? [differenceValue, differenceValue2]
+								: differenceValue,
+					};
+				}
 			}
+
+			// Process actions
+			const processedActions = actions.map((action) => {
+				switch (action.action_type) {
+					case "send_notification":
+						return {
+							type: "send_notification",
+							message: action.notification_message,
+						};
+					case "turn_on_relay":
+						return {
+							type: "turn_on_relay",
+							device_id: action.device_id,
+						};
+					case "turn_off_relay":
+						return {
+							type: "turn_off_relay",
+							device_id: action.device_id,
+						};
+					// Add more cases as needed
+					default:
+						return {};
+				}
+			});
 
 			const newAction = {
 				user_id: userId,
 				type: actionType === "scheduled" ? "scheduled" : "triggered",
 				trigger,
-				actions,
+				actions: processedActions,
 			};
 
 			await ActionService.addAction(newAction);
@@ -622,7 +725,6 @@ const AddAction = () => {
 
 	/* ----------------------------------------------------------------
 	 * Rendering: Step 1
-	 * We show 3 separate triggers: SCHEDULED, SINGLE DEVICE, TWO DEVICE
 	 * ---------------------------------------------------------------- */
 	const renderStep1 = () => (
 		<View style={styles.stepContainer}>
@@ -689,37 +791,33 @@ const AddAction = () => {
 			<Text style={styles.stepTitle}>Schedule Configuration</Text>
 
 			<Text style={styles.label}>Schedule Type</Text>
-			<Dropdown
-				style={[styles.dropdown, isFocusTriggerType && { borderColor: "blue" }]}
-				placeholderStyle={styles.placeholderStyle}
-				selectedTextStyle={styles.selectedTextStyle}
-				inputSearchStyle={styles.inputSearchStyle}
-				iconStyle={styles.iconStyle}
-				data={[
+			<View style={styles.badgeContainer}>
+				{[
 					{ label: "Specific Time", value: "date-time" },
 					{ label: "Repeating Interval", value: "interval" },
-				]}
-				search={false}
-				maxHeight={300}
-				labelField="label"
-				valueField="value"
-				placeholder={!isFocusTriggerType ? "Select Schedule Type" : "..."}
-				value={scheduleType}
-				onFocus={() => setIsFocusTriggerType(true)}
-				onBlur={() => setIsFocusTriggerType(false)}
-				onChange={(item) => {
-					setScheduleType(item.value);
-					setIsFocusTriggerType(false);
-				}}
-				renderLeftIcon={() => (
-					<AntDesign
-						style={styles.icon}
-						color={isFocusTriggerType ? "blue" : "black"}
-						name="Safety"
-						size={20}
-					/>
-				)}
-			/>
+				].map((option) => {
+					const isSelected = scheduleType === option.value;
+					return (
+						<TouchableOpacity
+							key={option.value}
+							style={[
+								styles.badge,
+								isSelected && styles.badgeActive, // Use consistent selected style
+							]}
+							onPress={() => setScheduleType(option.value)}
+						>
+							<Text
+								style={[
+									styles.badgeText,
+									isSelected && styles.badgeTextActive, // Use consistent selected text style
+								]}
+							>
+								{option.label}
+							</Text>
+						</TouchableOpacity>
+					);
+				})}
+			</View>
 
 			{scheduleType === "date-time" && (
 				<>
@@ -752,10 +850,13 @@ const AddAction = () => {
 				<>
 					<Text style={styles.label}>Repeat Interval</Text>
 					<TextInput
-						style={styles.input}
+						style={[styles.input, Platform.OS === "web" && styles.webInput]} // Added platform-specific styling
 						placeholder="e.g., 24h (24 hours), 1d (1 day)"
 						value={interval}
 						onChangeText={setIntervalValue}
+						autoCapitalize="none"
+						keyboardType="default"
+						placeholderTextColor="#888"
 					/>
 				</>
 			)}
@@ -844,6 +945,11 @@ const AddAction = () => {
 												setSecondaryConditionValue("");
 											}}
 										>
+											<MaterialIcons
+												name={metricIcons[metricOption.value] || "device-hub"}
+												size={24}
+												color="#71A12F"
+											/>
 											<Text
 												style={[
 													styles.badgeText,
@@ -873,7 +979,7 @@ const AddAction = () => {
 							</>
 						)}
 
-						{selectedCondition && (
+						{selectedCondition && selectedMetric !== "powerState" && (
 							<>
 								<Text style={styles.label}>
 									{selectedCondition === "between"
@@ -881,7 +987,10 @@ const AddAction = () => {
 										: "Target Value"}
 								</Text>
 								<TextInput
-									style={styles.input}
+									style={[
+										styles.input,
+										Platform.OS === "web" && styles.webInput,
+									]} // Added platform-specific styling
 									keyboardType="numeric"
 									value={conditionValue}
 									onChangeText={setConditionValue}
@@ -890,17 +999,24 @@ const AddAction = () => {
 											? "Enter Minimum Value"
 											: "Enter Value"
 									}
+									autoCapitalize="none"
+									placeholderTextColor="#888"
 								/>
 
 								{selectedCondition === "between" && (
 									<>
 										<Text style={styles.label}>Maximum Value</Text>
 										<TextInput
-											style={styles.input}
+											style={[
+												styles.input,
+												Platform.OS === "web" && styles.webInput,
+											]} // Added platform-specific styling
 											keyboardType="numeric"
 											value={secondaryConditionValue}
 											onChangeText={setSecondaryConditionValue}
 											placeholder="Enter Maximum Value"
+											autoCapitalize="none"
+											placeholderTextColor="#888"
 										/>
 									</>
 								)}
@@ -1011,7 +1127,6 @@ const AddAction = () => {
 						You have no locations. Please add locations first.
 					</Text>
 				) : deviceType1 ? (
-					// Use our filtered location data so only same-type devices appear and exclude Device 1
 					<LocationsList
 						data={filteredLocationsForDevice2}
 						selectedDevice={selectedDevice2Comp}
@@ -1019,7 +1134,6 @@ const AddAction = () => {
 							setSelectedLocation2Comp(locId);
 							setSelectedBin2Comp(binId);
 							setSelectedDevice2Comp(devId);
-							// Since both devices share the same metric, no need to reset metric here
 						}}
 						selectable={true}
 					/>
@@ -1046,6 +1160,11 @@ const AddAction = () => {
 												setSelectedMetricComp(metricOption.value);
 											}}
 										>
+											<MaterialIcons
+												name={metricIcons[metricOption.value] || "device-hub"}
+												size={24}
+												color="#71A12F"
+											/>
 											<Text
 												style={[
 													styles.badgeText,
@@ -1076,7 +1195,7 @@ const AddAction = () => {
 							}}
 						/>
 
-						{differenceCondition && (
+						{differenceCondition && selectedMetricComp !== "powerState" && (
 							<>
 								<Text style={styles.label}>
 									{differenceCondition === "between"
@@ -1084,7 +1203,10 @@ const AddAction = () => {
 										: "Difference Value"}
 								</Text>
 								<TextInput
-									style={styles.input}
+									style={[
+										styles.input,
+										Platform.OS === "web" && styles.webInput,
+									]} // Added platform-specific styling
 									keyboardType="numeric"
 									value={differenceValue}
 									onChangeText={setDifferenceValue}
@@ -1093,17 +1215,24 @@ const AddAction = () => {
 											? "Enter Minimum Difference"
 											: "Enter Difference Value"
 									}
+									autoCapitalize="none"
+									placeholderTextColor="#888"
 								/>
 
 								{differenceCondition === "between" && (
 									<>
 										<Text style={styles.label}>Max Difference</Text>
 										<TextInput
-											style={styles.input}
+											style={[
+												styles.input,
+												Platform.OS === "web" && styles.webInput,
+											]} // Corrected component name and added platform-specific styling
 											keyboardType="numeric"
 											value={differenceValue2}
 											onChangeText={setDifferenceValue2}
 											placeholder="Enter Maximum Difference"
+											autoCapitalize="none"
+											placeholderTextColor="#888"
 										/>
 									</>
 								)}
@@ -1116,7 +1245,7 @@ const AddAction = () => {
 	};
 
 	/* ----------------------------------------------------------------
-	 * Combining Step 2 logic
+	 * Rendering: Step 2
 	 * ---------------------------------------------------------------- */
 	const renderStep2 = () => {
 		if (actionType === "scheduled") return renderStep2Scheduled();
@@ -1125,6 +1254,314 @@ const AddAction = () => {
 		if (actionType === "triggeredComparison")
 			return renderStep2TriggeredComparison();
 		return null;
+	};
+
+	/* ----------------------------------------------------------------
+	 * Rendering: Step 3 (Summary & Actions)
+	 * ---------------------------------------------------------------- */
+	const renderStep3 = () => {
+		const actionTypeOptions = availableActions;
+
+		const groupedDevicesData = getGroupedDevicesData(locations);
+
+		const renderTriggerSummary = () => {
+			// Helper to format the summary visually
+			const SummaryRow = ({ icon, label, value, highlight = false }) => (
+				<View style={styles.summaryRow}>
+					{icon && (
+						<View style={styles.iconContainer}>
+							<MaterialIcons
+								name={icon}
+								size={20}
+								color={highlight ? COLORS.primary : COLORS.textDark}
+							/>
+						</View>
+					)}
+					<Text
+						style={[styles.summaryLabel, highlight && styles.summaryHighlight]}
+					>
+						{label}
+					</Text>
+					<Text
+						style={[styles.summaryValue, highlight && styles.summaryHighlight]}
+					>
+						{value}
+					</Text>
+				</View>
+			);
+
+			return (
+				<View style={styles.summaryBox}>
+					<Text style={styles.subSectionTitle}>Trigger Summary</Text>
+
+					{/* Display based on actionType */}
+					{actionType === "scheduled" && (
+						<>
+							<SummaryRow
+								icon="schedule"
+								label="Type"
+								value="Scheduled"
+								highlight
+							/>
+							{scheduleType === "date-time" ? (
+								<SummaryRow
+									icon="event"
+									label="Specific Time"
+									value={scheduledDateTime.toLocaleString()}
+								/>
+							) : (
+								<SummaryRow icon="loop" label="Interval" value={interval} />
+							)}
+						</>
+					)}
+
+					{actionType === "triggeredSingle" && (
+						<>
+							<SummaryRow
+								icon="sensors"
+								label="Type"
+								value="Single-Device Trigger"
+								highlight
+							/>
+							<SummaryRow
+								icon="device-hub"
+								label="Device"
+								value={
+									locations
+										.flatMap((loc) => loc.bins)
+										.flatMap((bin) => bin.devices)
+										.find((d) => {
+											console.log("looking for device ", d);
+											return d.id === selectedDevice;
+										})?.name || "Unknown"
+								}
+							/>
+							<SummaryRow
+								icon={metricIcons[selectedMetric] || "analytics"}
+								label="Metric"
+								value={
+									metricsSingle.find((m) => {
+										console.log("this is my metric", m);
+										return m.label === selectedMetric;
+									})?.name || "N/A"
+								}
+							/>
+							<SummaryRow
+								icon="compare"
+								label="Condition"
+								value={
+									selectedMetric === "powerState"
+										? selectedCondition === "eq"
+											? "Is On"
+											: "Is Off"
+										: selectedCondition === "between"
+											? `${conditionValue} - ${secondaryConditionValue}`
+											: conditionValue
+								}
+							/>
+						</>
+					)}
+
+					{actionType === "triggeredComparison" && (
+						<>
+							<SummaryRow
+								icon="compare-arrows"
+								label="Type"
+								value="Two-Device Comparison"
+								highlight
+							/>
+							<SummaryRow
+								icon="device-hub"
+								label="Device 1"
+								value={
+									locations
+										.flatMap((loc) => loc.bins)
+										.flatMap((bin) => bin.devices)
+										.find((d) => d.id === selectedDevice1Comp)?.name ||
+									"Unknown"
+								}
+							/>
+							<SummaryRow
+								icon="device-hub"
+								label="Device 2"
+								value={
+									locations
+										.flatMap((loc) => loc.bins)
+										.flatMap((bin) => bin.devices)
+										.find((d) => d.id === selectedDevice2Comp)?.name ||
+									"Unknown"
+								}
+							/>
+							<SummaryRow
+								icon={metricIcons[selectedMetricComp] || "analytics"}
+								label="Metric"
+								value={
+									metricsComp.find((m) => m.value === selectedMetricComp)
+										?.label || "N/A"
+								}
+							/>
+							<SummaryRow
+								icon="rule"
+								label="Difference Condition"
+								value={
+									selectedMetricComp === "powerState"
+										? differenceCondition === "eq"
+											? "Difference Is On"
+											: "Difference Is Off"
+										: differenceCondition === "between"
+											? `${differenceValue} - ${differenceValue2}`
+											: differenceValue
+								}
+							/>
+						</>
+					)}
+				</View>
+			);
+		};
+
+		return (
+			<View style={styles.stepContainer}>
+				<Text style={styles.stepTitle}>Summary & Actions</Text>
+
+				{/* Trigger Summary Card */}
+				{renderTriggerSummary()}
+
+				{/* Actions Configuration */}
+				<Text style={styles.subSectionTitle}>Actions</Text>
+				{actions.map((action, index) => {
+					// Get action details from availableActions
+					const actionDetails = availableActions.find(
+						(a) => a.value === action.action_type
+					);
+
+					// Filter the bins for the selected location in this action
+					const selectedLoc = locations.find(
+						(l) => l.value === action.location_id
+					);
+					const binsForLocation = selectedLoc ? selectedLoc.bins : [];
+
+					// Filter devices for the selected bin
+					const selectedBinInLoc = binsForLocation.find(
+						(b) => b.value === action.bin_id
+					);
+					const devicesForBin = selectedBinInLoc
+						? selectedBinInLoc.devices
+						: [];
+
+					return (
+						<View key={action.id} style={styles.actionItem}>
+							<Text style={styles.label}>Action Type</Text>
+							<View style={styles.actionTypeContainer}>
+								<MaterialIcons
+									name={actionDetails?.icon || "device-hub"}
+									size={24}
+									color="#71A12F"
+								/>
+								<Text style={styles.actionTypeLabel}>
+									{actionDetails?.label || "Unknown Action"}
+								</Text>
+							</View>
+
+							{/* Depending on action_type, render specific configurations */}
+							{action.action_type === "send_notification" && (
+								<>
+									<Text style={styles.label}>Notification Message</Text>
+									<TextInput
+										style={[
+											styles.input,
+											Platform.OS === "web" && styles.webInput,
+										]}
+										placeholder="Enter your notification message"
+										value={action.notification_message || ""}
+										onChangeText={(text) =>
+											handleUpdateAction(index, "notification_message", text)
+										}
+										autoCapitalize="none"
+										keyboardType="default"
+										placeholderTextColor="#888"
+									/>
+								</>
+							)}
+
+							{(action.action_type === "turn_on_relay" ||
+								action.action_type === "turn_off_relay") && (
+								<>
+									<Text style={styles.label}>Select Relay Device</Text>
+									<Dropdown
+										style={styles.dropdown}
+										placeholderStyle={styles.placeholderStyle}
+										selectedTextStyle={styles.selectedTextStyle}
+										inputSearchStyle={styles.inputSearchStyle}
+										iconStyle={styles.iconStyle}
+										data={devicesForBin.map((dev) => ({
+											label: dev.label,
+											value: dev.value,
+										}))}
+										search={false}
+										maxHeight={300}
+										labelField="label"
+										valueField="value"
+										placeholder="Select Device"
+										value={action.device_id}
+										onChange={(item) =>
+											handleUpdateAction(index, "device_id", item.value)
+										}
+									/>
+								</>
+							)}
+
+							{/* You can add more configurations based on action_type */}
+
+							<TouchableOpacity
+								style={styles.removeButton}
+								onPress={() => handleRemoveAction(index)}
+							>
+								<MaterialIcons name="delete" size={20} color="#000" />
+								<Text style={styles.removeButtonText}>Remove Action</Text>
+							</TouchableOpacity>
+						</View>
+					);
+				})}
+
+				<TouchableOpacity style={styles.addButton} onPress={handleAddAction}>
+					<MaterialIcons name="add" size={20} color="#FFF" />
+					<Text style={styles.addButtonText}>Add Action</Text>
+				</TouchableOpacity>
+
+				{/* Action Selection Modal */}
+				<Modal
+					visible={isActionModalVisible}
+					animationType="slide"
+					transparent={true}
+					onRequestClose={() => setIsActionModalVisible(false)}
+				>
+					<TouchableWithoutFeedback
+						onPress={() => setIsActionModalVisible(false)}
+					>
+						<View style={styles.modalOverlay} />
+					</TouchableWithoutFeedback>
+					<View style={styles.modalContent}>
+						<Text style={styles.modalTitle}>Select an Action</Text>
+						<ScrollView>
+							{availableActions.map((action) => (
+								<ActionCard
+									key={action.value}
+									action={action}
+									isSelected={false}
+									onSelect={handleSelectActionType}
+								/>
+							))}
+						</ScrollView>
+						<TouchableOpacity
+							style={styles.modalCloseButton}
+							onPress={() => setIsActionModalVisible(false)}
+						>
+							<Text style={styles.modalCloseButtonText}>Cancel</Text>
+						</TouchableOpacity>
+					</View>
+				</Modal>
+			</View>
+		);
 	};
 
 	/* ----------------------------------------------------------------
@@ -1144,68 +1581,66 @@ const AddAction = () => {
 	};
 
 	return (
-		<TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-			<SafeAreaView style={styles.safeArea}>
-				<ScrollView contentContainerStyle={styles.container}>
-					{/* Header */}
-					<View style={styles.headerContainer}>
-						<BackButton label="Back" />
-						<Text style={styles.headerTitle}>Create New Action</Text>
-						<View style={{ width: 24 }} />
-					</View>
+		<SafeAreaView style={styles.safeArea}>
+			<ScrollView contentContainerStyle={styles.container}>
+				{/* Header */}
+				<View style={styles.headerContainer}>
+					<BackButton label="Back" />
+					<Text style={styles.headerTitle}>Create New Action</Text>
+					<View style={{ width: 24 }} />
+				</View>
 
-					{/* Progress Bar */}
-					<View style={styles.progressContainer}>
-						<Progress.Bar
-							progress={currentStep / steps.length}
-							width={null}
-							color="#71A12F"
-							unfilledColor="#E0E0E0"
-							borderWidth={0}
-							height={10}
-							borderRadius={5}
-						/>
-						<Text style={styles.progressText}>
-							Step {currentStep} of {steps.length}: {steps[currentStep - 1]}
-						</Text>
-					</View>
+				{/* Progress Bar */}
+				<View style={styles.progressContainer}>
+					<Progress.Bar
+						progress={currentStep / steps.length}
+						width={null}
+						color="#71A12F"
+						unfilledColor="#E0E0E0"
+						borderWidth={0}
+						height={10}
+						borderRadius={5}
+					/>
+					<Text style={styles.progressText}>
+						Step {currentStep} of {steps.length}: {steps[currentStep - 1]}
+					</Text>
+				</View>
 
-					{/* Step Content */}
-					<View style={styles.sectionContainer}>{renderCurrentStep()}</View>
+				{/* Step Content */}
+				<View style={styles.sectionContainer}>{renderCurrentStep()}</View>
 
-					{/* Navigation Buttons */}
-					<View style={styles.navigationContainer}>
-						{currentStep > 1 && (
-							<TouchableOpacity
-								style={styles.nextButton}
-								onPress={handlePreviousStep}
-							>
-								<MaterialIcons name="arrow-back" size={24} color="#FFF" />
-								<Text style={styles.nextButtonText}>Back</Text>
-							</TouchableOpacity>
-						)}
-						{currentStep < steps.length && (
-							<TouchableOpacity
-								style={styles.nextButton}
-								onPress={handleNextStep}
-							>
-								<Text style={styles.nextButtonText}>Next</Text>
-								<MaterialIcons name="arrow-forward" size={24} color="#FFF" />
-							</TouchableOpacity>
-						)}
-						{currentStep === steps.length && (
-							<TouchableOpacity
-								style={styles.submitButton}
-								onPress={handleSubmit}
-							>
-								<MaterialIcons name="save" size={24} color="#FFF" />
-								<Text style={styles.submitButtonText}>Save Automation</Text>
-							</TouchableOpacity>
-						)}
-					</View>
-				</ScrollView>
-			</SafeAreaView>
-		</TouchableWithoutFeedback>
+				{/* Navigation Buttons */}
+				<View style={styles.navigationContainer}>
+					{currentStep > 1 && (
+						<TouchableOpacity
+							style={styles.nextButton}
+							onPress={handlePreviousStep}
+						>
+							<MaterialIcons name="arrow-back" size={24} color="#FFF" />
+							<Text style={styles.nextButtonText}>Back</Text>
+						</TouchableOpacity>
+					)}
+					{currentStep < steps.length && (
+						<TouchableOpacity
+							style={styles.nextButton}
+							onPress={handleNextStep}
+						>
+							<Text style={styles.nextButtonText}>Next</Text>
+							<MaterialIcons name="arrow-forward" size={24} color="#FFF" />
+						</TouchableOpacity>
+					)}
+					{currentStep === steps.length && (
+						<TouchableOpacity
+							style={styles.submitButton}
+							onPress={handleSubmit}
+						>
+							<MaterialIcons name="save" size={24} color="#FFF" />
+							<Text style={styles.submitButtonText}>Save Automation</Text>
+						</TouchableOpacity>
+					)}
+				</View>
+			</ScrollView>
+		</SafeAreaView>
 	);
 };
 
@@ -1348,6 +1783,9 @@ const styles = StyleSheet.create({
 		borderWidth: 1,
 		borderColor: COLORS.border,
 	},
+	webInput: {
+		outlineStyle: "none", // Removes the outline specifically for web
+	} as any,
 
 	/* Date Picker */
 	datePickerButton: {
@@ -1499,6 +1937,94 @@ const styles = StyleSheet.create({
 		marginTop: 10,
 		textDecorationLine: "underline",
 	},
+
+	/* Summary Box */
+	summaryRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		marginVertical: 8,
+	},
+	iconContainer: {
+		width: 30,
+		height: 30,
+		justifyContent: "center",
+		alignItems: "center",
+		marginRight: 10,
+	},
+	summaryLabel: {
+		fontSize: 14,
+		color: COLORS.textLight,
+		flex: 1,
+		fontWeight: "600",
+	},
+	summaryValue: {
+		fontSize: 14,
+		color: COLORS.textDark,
+		fontWeight: "400",
+	},
+	summaryHighlight: {
+		color: COLORS.primary,
+		fontWeight: "bold",
+	},
+	summaryBox: {
+		borderRadius: SIZES.radius,
+		borderWidth: 1,
+		borderColor: COLORS.border,
+		padding: SIZES.base,
+		marginBottom: SIZES.base,
+	},
+
+	/* Action Type Display */
+	actionTypeContainer: {
+		flexDirection: "row",
+		alignItems: "center",
+		marginBottom: 10,
+	},
+	actionTypeLabel: {
+		fontSize: 16,
+		color: COLORS.textDark,
+		marginLeft: 10,
+		fontWeight: "600",
+	},
+
+	/* Modal Styles */
+	modalOverlay: {
+		flex: 1,
+		backgroundColor: "rgba(0,0,0,0.5)",
+	},
+	modalContent: {
+		position: "absolute",
+		bottom: 0,
+		left: 0,
+		right: 0,
+		maxHeight: "80%",
+		backgroundColor: COLORS.white,
+		borderTopLeftRadius: SIZES.radius,
+		borderTopRightRadius: SIZES.radius,
+		padding: SIZES.base,
+	},
+	modalTitle: {
+		fontSize: 18,
+		fontWeight: "bold",
+		color: COLORS.textDark,
+		marginBottom: SIZES.base,
+		textAlign: "center",
+	},
+	modalCloseButton: {
+		marginTop: SIZES.base,
+		backgroundColor: COLORS.primary,
+		paddingVertical: 10,
+		borderRadius: SIZES.radius,
+		alignItems: "center",
+	},
+	modalCloseButtonText: {
+		color: COLORS.white,
+		fontSize: 16,
+		fontWeight: "bold",
+	},
+
+	/* ActionCard Reuse */
+	// Already using triggerCard styles for ActionCard
 });
 
 /* ----------------------------------------------------------------
@@ -1530,5 +2056,26 @@ const ConditionBadge = ({ options, selectedValue, onSelect }) => {
 				);
 			})}
 		</View>
+	);
+};
+
+/* ----------------------------------------------------------------
+ * ActionCard Component
+ * ---------------------------------------------------------------- */
+const ActionCard = ({ action, isSelected, onSelect }) => {
+	return (
+		<TouchableOpacity
+			style={[
+				styles.triggerCard, // Reusing triggerCard styles for consistency
+				isSelected && styles.selectedCard,
+			]}
+			onPress={() => onSelect(action.value)}
+		>
+			<MaterialIcons name={action.icon} size={32} color="#71A12F" />
+			<View style={styles.triggerTextContainer}>
+				<Text style={styles.triggerTitle}>{action.label}</Text>
+				<Text style={styles.triggerDescription}>{action.description}</Text>
+			</View>
+		</TouchableOpacity>
 	);
 };

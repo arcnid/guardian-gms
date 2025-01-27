@@ -206,17 +206,19 @@ const LocationsScreen = () => {
 			<TabBar activeTab={activeTab} setActiveTab={setActiveTab} />
 
 			{activeTab === "List" ? (
-				<LocationsList
-					data={locations}
-					selectable={false} // or true if you want device selection
-					selectedDevice={selectedDevice}
-					onDeviceSelect={(locId, binId, devId) => {
-						setSelectedLocation(locId);
-						setSelectedBin(binId);
-						setSelectedDevice(devId);
-						// Optionally navigate or do other actions
-					}}
-				/>
+				<View style={styles.locationsListContainer}>
+					<LocationsList
+						data={locations}
+						selectable={false} // or true if you want device selection
+						selectedDevice={selectedDevice}
+						onDeviceSelect={(locId, binId, devId) => {
+							setSelectedLocation(locId);
+							setSelectedBin(binId);
+							setSelectedDevice(devId);
+							// Optionally navigate or do other actions
+						}}
+					/>
+				</View>
 			) : (
 				<CustomMapView data={locations} onMarkerPress={handleMarkerPress} />
 			)}
@@ -315,6 +317,10 @@ const styles = StyleSheet.create({
 	container: {
 		flex: 1,
 		backgroundColor: Colors.background,
+	},
+	locationsListContainer: {
+		flex: 1,
+		padding: 10,
 	},
 	centered: {
 		flex: 1,
