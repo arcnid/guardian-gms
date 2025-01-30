@@ -719,9 +719,6 @@ const AddAction = () => {
 		}
 	};
 
-	/* ----------------------------------------------------------------
-	 * Final Submit for Actions Configuration
-	 * ---------------------------------------------------------------- */
 	const handleFinalSubmit = async () => {
 		// Final validation to ensure both devices match
 		if (triggers.some((trigger) => trigger.type === "two_device_diff")) {
@@ -923,7 +920,6 @@ const AddAction = () => {
 		<View style={styles.stepContainer}>
 			<Text style={styles.stepTitle}>Select Trigger Type</Text>
 
-			{/* Scheduled Trigger */}
 			<TouchableOpacity
 				style={[
 					styles.triggerCard,
@@ -940,7 +936,6 @@ const AddAction = () => {
 				</View>
 			</TouchableOpacity>
 
-			{/* Single Device Trigger */}
 			<TouchableOpacity
 				style={[
 					styles.triggerCard,
@@ -957,7 +952,6 @@ const AddAction = () => {
 				</View>
 			</TouchableOpacity>
 
-			{/* Two Device Comparison Trigger */}
 			<TouchableOpacity
 				style={[
 					styles.triggerCard,
@@ -983,7 +977,6 @@ const AddAction = () => {
 		<View style={styles.stepContainer}>
 			<Text style={styles.stepTitle}>Schedule Configuration</Text>
 
-			{/* Days of the Week Selection */}
 			<Text style={styles.label}>Select Days of the Week</Text>
 			<View style={styles.daysContainer}>
 				{[
@@ -1023,7 +1016,6 @@ const AddAction = () => {
 				})}
 			</View>
 
-			{/* Common Time Selection */}
 			{selectedDays.length > 0 && (
 				<View style={styles.timePickerContainer}>
 					<Text style={styles.label}>
@@ -1032,7 +1024,6 @@ const AddAction = () => {
 					{Platform.OS === "web" ? (
 						<View style={styles.webTimePickerContainer}>
 							<MaterialIcons name="access-time" size={24} color="#71A12F" />
-							{/* Integrate react-time-picker with custom className */}
 							<TimePickerWeb
 								onChange={(time) => setCommonTime(time)}
 								value={commonTime}
@@ -1058,7 +1049,6 @@ const AddAction = () => {
 				</View>
 			)}
 
-			{/* Time Picker Modal for Mobile */}
 			{showTimePicker && Platform.OS !== "web" && (
 				<DateTimePicker
 					value={
@@ -1262,7 +1252,6 @@ const AddAction = () => {
 				<Text style={styles.stepTitle}>Configure Two-Device Comparison</Text>
 
 				<ScrollView contentContainerStyle={styles.stepContainerScroll}>
-					{/* Device 1 */}
 					<Text style={styles.subSectionTitle}>Device 1</Text>
 					{locationsLoading ? (
 						<ActivityIndicator size="large" color="#71A12F" />
@@ -1314,7 +1303,6 @@ const AddAction = () => {
 						/>
 					)}
 
-					{/* Device 2 */}
 					<Text style={styles.subSectionTitle}>Device 2</Text>
 					{locationsLoading ? (
 						<ActivityIndicator size="large" color="#71A12F" />
@@ -1405,7 +1393,6 @@ const AddAction = () => {
 								</View>
 							)}
 
-							{/* Single Metric for Both Devices */}
 							{selectedMetricComp && (
 								<>
 									<Text style={styles.label}>Difference Condition</Text>
@@ -1522,7 +1509,6 @@ const AddAction = () => {
 				<View style={styles.summaryBox}>
 					<Text style={styles.subSectionTitle}>Trigger Summary</Text>
 
-					{/* Display all triggers with their conditions */}
 					{triggers.map((trigger, index) => (
 						<View key={index}>
 							{trigger.condition && index > 0 && (
@@ -1536,7 +1522,6 @@ const AddAction = () => {
 									value={trigger.condition.toUpperCase()}
 								/>
 							)}
-							{/* Display trigger details */}
 							{trigger.type === "scheduled" && (
 								<>
 									<SummaryRow
@@ -1655,7 +1640,6 @@ const AddAction = () => {
 								</>
 							)}
 
-							{/* Edit and Remove Buttons */}
 							<View style={styles.triggerActionsContainer}>
 								<TouchableOpacity
 									style={styles.editButton}
@@ -1682,10 +1666,8 @@ const AddAction = () => {
 			<ScrollView style={styles.stepContainer}>
 				<Text style={styles.stepTitle}>When: </Text>
 
-				{/* Trigger Summary Card */}
 				{renderTriggerSummary()}
 
-				{/* **Add Trigger with AND/OR** */}
 				<TouchableOpacity
 					style={styles.addButton}
 					onPress={() => {
@@ -1698,7 +1680,6 @@ const AddAction = () => {
 
 				<Text style={styles.stepTitle}>Do: </Text>
 
-				{/* Actions Configuration */}
 				<Text style={styles.subSectionTitle}>Actions</Text>
 				{actions.map((action, index) => {
 					// Get action details from availableActions
@@ -1734,7 +1715,6 @@ const AddAction = () => {
 								</Text>
 							</View>
 
-							{/* Depending on action_type, render specific configurations */}
 							{action.action_type === "send_notification" && (
 								<>
 									<Text style={styles.label}>Notification Message</Text>
@@ -1810,8 +1790,6 @@ const AddAction = () => {
 								</>
 							)}
 
-							{/* You can add more configurations based on action_type */}
-
 							<TouchableOpacity
 								style={styles.removeButton}
 								onPress={() => handleRemoveAction(index)}
@@ -1828,7 +1806,6 @@ const AddAction = () => {
 					<Text style={styles.addButtonText}>Add Action</Text>
 				</TouchableOpacity>
 
-				{/* Action Selection Modal */}
 				<Modal
 					visible={isActionModalVisible}
 					animationType="slide"
@@ -1861,7 +1838,6 @@ const AddAction = () => {
 					</View>
 				</Modal>
 
-				{/* **Operator Selection Modal** */}
 				<Modal
 					visible={isOperatorModalVisible}
 					transparent={true}
@@ -1922,7 +1898,6 @@ const AddAction = () => {
 			{Platform.OS !== "web" ? (
 				<TouchableWithoutFeedback onPress={Keyboard.dismiss}>
 					<View style={styles.container}>
-						{/* Header */}
 						<View style={styles.backContainer}>
 							<BackButton label="Back" />
 						</View>
@@ -1932,7 +1907,6 @@ const AddAction = () => {
 							<View style={{ width: 24 }} />
 						</View>
 
-						{/* Progress Bar */}
 						<View style={styles.progressContainer}>
 							<Progress.Bar
 								progress={currentStep / steps.length}
@@ -1948,10 +1922,8 @@ const AddAction = () => {
 							</Text>
 						</View>
 
-						{/* Content Area */}
 						<View style={styles.contentContainer}>{renderCurrentStep()}</View>
 
-						{/* Navigation Buttons */}
 						{currentStep < 3 && (
 							<View style={styles.navigationContainer}>
 								{currentStep > 1 && (
@@ -1979,7 +1951,6 @@ const AddAction = () => {
 							</View>
 						)}
 
-						{/* Submit Button only on step3 */}
 						{currentStep === 3 && (
 							<View style={styles.navigationContainer}>
 								{triggers.length > 0 && actions.length > 0 && (
@@ -1997,7 +1968,6 @@ const AddAction = () => {
 				</TouchableWithoutFeedback>
 			) : (
 				<View style={styles.container}>
-					{/* Header */}
 					<View style={styles.backContainer}>
 						<BackButton label="Back" />
 					</View>
@@ -2007,7 +1977,6 @@ const AddAction = () => {
 						<View style={{ width: 24 }} />
 					</View>
 
-					{/* Progress Bar */}
 					<View style={styles.progressContainer}>
 						<Progress.Bar
 							progress={currentStep / steps.length}
@@ -2023,10 +1992,8 @@ const AddAction = () => {
 						</Text>
 					</View>
 
-					{/* Content Area */}
 					<View style={styles.contentContainer}>{renderCurrentStep()}</View>
 
-					{/* Navigation Buttons */}
 					{currentStep < 3 && (
 						<View style={styles.navigationContainer}>
 							{currentStep > 1 && (
@@ -2050,7 +2017,6 @@ const AddAction = () => {
 						</View>
 					)}
 
-					{/* Submit Button only on step3 */}
 					{currentStep === 3 && (
 						<View style={styles.navigationContainer}>
 							{triggers.length > 0 && actions.length > 0 && (
@@ -2085,7 +2051,6 @@ const COLORS = {
 	error: "#F44336",
 };
 
-// Sizes for consistency
 const SIZES = {
 	base: 16, // a base spacing unit
 	radius: 8, // standard border radius
@@ -2695,8 +2660,7 @@ const ActionCard = ({ action, isSelected, onSelect }) => {
 			]}
 			onPress={() => onSelect(action.value)}
 		>
-			<MaterialIcons name={action.icon} size={28} color="#71A12F" />{" "}
-			{/* Slightly reduced size */}
+			<MaterialIcons name={action.icon} size={28} color="#71A12F" />
 			<View style={styles.triggerTextContainer}>
 				<Text style={styles.triggerTitle}>{action.label}</Text>
 				<Text style={styles.triggerDescription}>{action.description}</Text>

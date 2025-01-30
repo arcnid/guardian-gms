@@ -472,6 +472,69 @@ export const BinCard = memo(function BinCard({
 
 	const hasDevices = bin.devices && bin.devices.length > 0;
 
+	if (Platform.OS === "android") {
+		return (
+			<View style={styles.binCard}>
+				<TouchableOpacity
+					style={styles.binHeader}
+					onPress={hasDevices ? toggleExpand : undefined}
+					activeOpacity={hasDevices ? 0.7 : 1}
+					accessibilityLabel={`Toggle ${bin.name} Devices`}
+				>
+					<View style={styles.binHeaderLeft}>
+						<MaterialIcons
+							name="storage"
+							size={24}
+							color={Colors.primary}
+							style={styles.binIcon}
+						/>
+						<View>
+							<Text style={styles.binTitle}>{bin.name || "Unnamed Bin"}</Text>
+							<Text style={styles.binSubtitle}>
+								{bin.devices?.length ?? 0} Device
+								{(bin.devices?.length ?? 0) !== 1 ? "s" : ""}
+							</Text>
+						</View>
+					</View>
+					{hasDevices && (
+						<MaterialIcons
+							name={expanded ? "expand-less" : "expand-more"}
+							size={24}
+							color={Colors.primary}
+							accessibilityLabel={
+								expanded ? "Collapse Devices" : "Expand Devices"
+							}
+						/>
+					)}
+				</TouchableOpacity>
+
+				{expanded && hasDevices && (
+					<View style={styles.deviceList}>
+						{bin.devices
+							.filter((d) => d && d.id)
+							.map((device) => (
+								<DeviceItem
+									key={String(device.id)}
+									device={device}
+									siteId={siteId}
+									binId={bin.id}
+									selectable={selectable}
+									selectedDevice={selectedDevice}
+									onDeviceSelect={onDeviceSelect}
+								/>
+							))}
+					</View>
+				)}
+
+				{!hasDevices && (
+					<View style={{ marginTop: 8 }}>
+						<Text style={styles.noDataText}>No devices in this bin.</Text>
+					</View>
+				)}
+			</View>
+		);
+	}
+
 	return (
 		<Animated.View style={[styles.binCard, scaleStyle]}>
 			<TouchableOpacity

@@ -13,6 +13,7 @@ export default {
 			eas: {
 				projectId: "868c5333-a463-4787-8488-03f595dc677f",
 			},
+			GOOGLE_MAPS_API_KEY: "AIzaSyB64Xzy1HRz_zhdms_2-CMJgmpda3qjKp8",
 		},
 
 		orientation: "portrait",
@@ -34,6 +35,12 @@ export default {
 				foregroundImage: "./assets/images/adaptive-icon.png",
 				backgroundColor: "#ffffff",
 			},
+			config: {
+				googleMaps: {
+					apiKey: "AIzaSyB64Xzy1HRz_zhdms_2-CMJgmpda3qjKp8",
+				},
+			},
+
 			googleMapsApiKey: "AIzaSyB64Xzy1HRz_zhdms_2-CMJgmpda3qjKp8",
 		},
 		web: {

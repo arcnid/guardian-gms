@@ -86,6 +86,8 @@ export const UserDeviceService = {
 	removeDevice: async (id) => {
 		const client = getSupabaseClient();
 
+		console.log("about to delete device with id", id);
+
 		const { data, error } = await client
 			.from("userdevices")
 			.delete()
@@ -108,6 +110,11 @@ export const UserDeviceService = {
 	getDevice: async (deviceId: string) => {
 		const client = getSupabaseClient();
 
+		if (deviceId == null || deviceId == undefined || deviceId == "")
+			return null; // Handle null or undefined deviceId
+
+		console.log(deviceId);
+
 		console.log("trying to find", deviceId);
 
 		const { data, error } = await client
@@ -117,7 +124,7 @@ export const UserDeviceService = {
 			.single();
 
 		if (error) {
-			console.error("Error removing device:", error);
+			console.error("Error finding device:", error);
 			throw error;
 		}
 

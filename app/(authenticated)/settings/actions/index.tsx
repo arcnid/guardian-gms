@@ -300,6 +300,12 @@ const ScheduledActions = () => {
 
 				return (
 					<View style={styles.expressionContainer}>
+						<View style={styles.operatorBadge}>
+							<Text style={styles.operatorBadgeText}>
+								{operatorToSymbol(trigger.conditionOperator)}
+							</Text>
+						</View>
+
 						<Text style={styles.triggerDetails}>
 							When: {device1Name} vs {device2Name} - {trigger.metric} difference{" "}
 							{diffConditionSymbol} {trigger.value}
