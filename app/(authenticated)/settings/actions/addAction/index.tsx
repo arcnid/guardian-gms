@@ -19,7 +19,7 @@ import {
 import { MaterialIcons, AntDesign } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { AuthContext } from "@/contexts/AuthContext";
-import { ActionService } from "@/services/actions/service";
+import { ActionService } from "@/services/actions/service"; // Ensure correct import path
 import BackButton from "@/components/BackButton";
 import * as Progress from "react-native-progress";
 import { Dropdown } from "react-native-element-dropdown";
@@ -27,12 +27,12 @@ import { locationService } from "@/services/locations/service";
 import { LocationsList } from "@/components/locations/Locations";
 import { UserDeviceService } from "@/services/userDevice/service";
 
-/**
- * NOTE: We now have three potential values for `actionType`:
- * 1) "scheduled"
- * 2) "triggeredSingle"
- * 3) "triggeredComparison"
- */
+// Import react-time-picker only for web
+let TimePickerWeb = null;
+if (Platform.OS === "web") {
+	TimePickerWeb = require("react-time-picker").default;
+}
+
 const AddAction = () => {
 	const { userId } = useContext(AuthContext);
 
@@ -43,18 +43,23 @@ const AddAction = () => {
 		"Configure Actions",
 	];
 
-	// Step 1
+	// **New States for Multiple Triggers**
+	const [triggers, setTriggers] = useState([]); // Array of triggers
+	const [isOperatorModalVisible, setIsOperatorModalVisible] = useState(false); // Modal to choose AND/OR
+	const [pendingOperator, setPendingOperator] = useState(null); // Selected operator for the next trigger
+
+	// State to track if editing a trigger
+	const [editingTriggerIndex, setEditingTriggerIndex] = useState(null);
+
+	// Current Trigger States
 	const [actionType, setActionType] = useState(null);
 
-	// Step 2 (Scheduled)
-	const [scheduleType, setScheduleType] = useState(null); // "date-time" or "interval"
-	const [scheduledDateTime, setScheduledDateTime] = useState(new Date());
-	const [showDatePicker, setShowDatePicker] = useState(false);
-	const [interval, setIntervalValue] = useState("");
+	// **Step 2 (Scheduled) - Updated for Single Time Scheduling**
+	const [selectedDays, setSelectedDays] = useState([]); // Array of selected days, e.g., ["Monday", "Wednesday"]
+	const [commonTime, setCommonTime] = useState(""); // Single time for all selected days, e.g., "14:00"
+	const [showTimePicker, setShowTimePicker] = useState(false); // Whether to show the time picker
 
-	// ----------------------------------------------------------------------------
-	// Step 2 (Triggered) -> Single-Device states
-	// ----------------------------------------------------------------------------
+	// Step 2 (Triggered Single-Device)
 	const [selectedLocation, setSelectedLocation] = useState(null);
 	const [selectedBin, setSelectedBin] = useState(null);
 	const [selectedDevice, setSelectedDevice] = useState(null);
@@ -64,9 +69,7 @@ const AddAction = () => {
 	const [conditionValue, setConditionValue] = useState("");
 	const [secondaryConditionValue, setSecondaryConditionValue] = useState("");
 
-	// ----------------------------------------------------------------------------
-	// Step 2 (Triggered) -> Two-Device Comparison states
-	// ----------------------------------------------------------------------------
+	// Step 2 (Triggered Two-Device Comparison)
 	const [selectedLocation1Comp, setSelectedLocation1Comp] = useState(null);
 	const [selectedBin1Comp, setSelectedBin1Comp] = useState(null);
 	const [selectedDevice1Comp, setSelectedDevice1Comp] = useState(null);
@@ -209,7 +212,6 @@ const AddAction = () => {
 			setSelectedBin2Comp(null);
 			setSelectedDevice2Comp(null);
 			setSelectedMetricComp(null);
-			return;
 		}
 
 		const fetchMetrics = async () => {
@@ -380,21 +382,21 @@ const AddAction = () => {
 
 		// Step 2 validation
 		if (currentStep === 2) {
-			// 2a) SCHEDULED
+			// 2a) SCHEDULED - Updated for Single Time Scheduling
 			if (actionType === "scheduled") {
-				if (!scheduleType) {
+				if (selectedDays.length === 0) {
 					Alert.alert(
 						"Configuration Required",
-						"Please select a schedule type"
+						"Please select at least one day for the schedule"
 					);
 					return;
 				}
-				if (scheduleType === "date-time" && !scheduledDateTime) {
-					Alert.alert("Configuration Required", "Please select date/time");
-					return;
-				}
-				if (scheduleType === "interval" && !interval) {
-					Alert.alert("Configuration Required", "Please enter an interval");
+
+				if (!commonTime) {
+					Alert.alert(
+						"Configuration Required",
+						"Please select a common time for all selected days"
+					);
 					return;
 				}
 			}
@@ -468,6 +470,116 @@ const AddAction = () => {
 					}
 				}
 			}
+
+			// After validation, construct the current trigger
+			let trigger = {};
+
+			if (actionType === "scheduled") {
+				// SCHEDULED - Single Time Scheduling
+				trigger = {
+					schedule_type: "weekly",
+					days_of_week: selectedDays, // e.g., ["Monday", "Wednesday"]
+					common_time: commonTime, // e.g., "14:00"
+					type: "scheduled",
+					condition: triggers.length === 0 ? null : pendingOperator, // Set condition
+				};
+			} else if (actionType === "triggeredSingle") {
+				// SINGLE DEVICE
+				if (selectedMetric === "powerState") {
+					trigger = {
+						type: "single_device",
+						location_id: selectedLocation,
+						bin_id: selectedBin,
+						device_id: selectedDevice,
+						metric: selectedMetric,
+						condition: selectedCondition,
+						value: selectedCondition === "eq" ? true : false,
+						conditionOperator: triggers.length === 0 ? null : pendingOperator, // Set condition
+					};
+				} else {
+					trigger = {
+						type: "single_device",
+						location_id: selectedLocation,
+						bin_id: selectedBin,
+						device_id: selectedDevice,
+						metric: selectedMetric,
+						condition: selectedCondition,
+						value:
+							selectedCondition === "between"
+								? [conditionValue, secondaryConditionValue]
+								: conditionValue,
+						conditionOperator: triggers.length === 0 ? null : pendingOperator, // Set condition
+					};
+				}
+			} else if (actionType === "triggeredComparison") {
+				// TWO DEVICE
+				if (selectedMetricComp === "powerState") {
+					trigger = {
+						type: "two_device_diff",
+						metric: selectedMetricComp, // Single metric applied to both devices
+						device1: {
+							location_id: selectedLocation1Comp,
+							bin_id: selectedBin1Comp,
+							device_id: selectedDevice1Comp,
+						},
+						device2: {
+							location_id: selectedLocation2Comp,
+							bin_id: selectedBin2Comp,
+							device_id: selectedDevice2Comp,
+						},
+						condition: differenceCondition,
+						value: differenceCondition === "eq" ? true : false,
+						conditionOperator: triggers.length === 0 ? null : pendingOperator, // Set condition
+					};
+				} else {
+					trigger = {
+						type: "two_device_diff",
+						metric: selectedMetricComp, // Single metric applied to both devices
+						device1: {
+							location_id: selectedLocation1Comp,
+							bin_id: selectedBin1Comp,
+							device_id: selectedDevice1Comp,
+						},
+						device2: {
+							location_id: selectedLocation2Comp,
+							bin_id: selectedBin2Comp,
+							device_id: selectedDevice2Comp,
+						},
+						condition: differenceCondition,
+						value:
+							differenceCondition === "between"
+								? [differenceValue, differenceValue2]
+								: differenceValue,
+						conditionOperator: triggers.length === 0 ? null : pendingOperator, // Set condition
+					};
+				}
+			}
+
+			if (editingTriggerIndex !== null) {
+				// **Update the existing trigger**
+				setTriggers((prevTriggers) => {
+					const updatedTriggers = [...prevTriggers];
+					updatedTriggers[editingTriggerIndex] = trigger;
+					return updatedTriggers;
+				});
+				setEditingTriggerIndex(null);
+				setCurrentStep(3);
+			} else {
+				// **Add the constructed trigger to the triggers array**
+				setTriggers((prevTriggers) => [...prevTriggers, trigger]);
+
+				// **Reset trigger configuration states for the next trigger**
+				resetTriggerConfig();
+
+				// **Show modal to choose adding another trigger or proceed to actions**
+				if (triggers.length > 0) {
+					// If there's already at least one trigger, prompt for logical operator
+					setIsOperatorModalVisible(true);
+				} else {
+					// If it's the first trigger, proceed to step3
+					setCurrentStep(3);
+				}
+			}
 		}
 
 		// Step 3 validation
@@ -476,11 +588,76 @@ const AddAction = () => {
 			return;
 		}
 
+		if (currentStep === 3 && actions.length > 0) {
+			// Final Submission will be handled separately
+			return;
+		}
+
 		setCurrentStep((prev) => Math.min(prev + 1, steps.length));
 	};
 
+	/* ----------------------------------------------------------------
+	 * Handle Logical Operator Selection
+	 * ---------------------------------------------------------------- */
+	const handleOperatorSelection = (operator) => {
+		setPendingOperator(operator);
+		setIsOperatorModalVisible(false);
+		// Restart the wizard for the next trigger
+		setCurrentStep(1);
+	};
+
+	/* ----------------------------------------------------------------
+	 * Reset Trigger Configuration (After Adding a Trigger)
+	 * ---------------------------------------------------------------- */
+	const resetTriggerConfig = () => {
+		setActionType(null);
+
+		// Added these for single time scheduling
+		setSelectedDays([]);
+		setCommonTime("");
+		setShowTimePicker(false);
+
+		// Single device
+		setSelectedLocation(null);
+		setSelectedBin(null);
+		setSelectedDevice(null);
+		setSelectedMetric(null);
+		setSelectedCondition(null);
+		setConditionValue("");
+		setSecondaryConditionValue("");
+		setMetricsSingle([]);
+		setMetricsSingleLoading(false);
+
+		// Two device
+		setSelectedLocation1Comp(null);
+		setSelectedBin1Comp(null);
+		setSelectedDevice1Comp(null);
+		setDeviceType1(null);
+		setSelectedMetricComp(null);
+
+		setSelectedLocation2Comp(null);
+		setSelectedBin2Comp(null);
+		setSelectedDevice2Comp(null);
+		setDifferenceCondition(null);
+		setDifferenceValue("");
+		setDifferenceValue2("");
+
+		setMetricsComp([]);
+		setMetricsCompLoading(false);
+	};
+
 	const handlePreviousStep = () => {
-		setCurrentStep((prev) => Math.max(prev - 1, 1));
+		// If on step 3 and there are multiple triggers, go back to the last trigger
+		if (currentStep === 3 && triggers.length > 1) {
+			// Remove the last trigger
+			setTriggers((prevTriggers) => prevTriggers.slice(0, -1));
+			// Set operator as null since it's removed
+			setPendingOperator(null);
+			// Set wizard to step2 to edit the last trigger
+			setCurrentStep(2);
+		} else {
+			setCurrentStep((prev) => Math.max(prev - 1, 1));
+		}
 	};
 
 	/* ----------------------------------------------------------------
@@ -543,105 +720,27 @@ const AddAction = () => {
 	};
 
 	/* ----------------------------------------------------------------
-	 * Final Submit
+	 * Final Submit for Actions Configuration
 	 * ---------------------------------------------------------------- */
-	const handleSubmit = async () => {
+	const handleFinalSubmit = async () => {
 		// Final validation to ensure both devices match
-		if (actionType === "triggeredComparison") {
-			const deviceType2 = getDeviceType(selectedDevice2Comp);
-			if (deviceType1 !== deviceType2) {
-				Alert.alert(
-					"Validation Error",
-					"Device 2 must be the same type as Device 1."
-				);
-				return;
+		if (triggers.some((trigger) => trigger.type === "two_device_diff")) {
+			for (let i = 0; i < triggers.length; i++) {
+				const trigger = triggers[i];
+				if (trigger.type === "two_device_diff") {
+					const deviceType2 = getDeviceType(trigger.device2.device_id);
+					if (deviceType1 !== deviceType2) {
+						Alert.alert(
+							"Validation Error",
+							"Device 2 must be the same type as Device 1."
+						);
+						return;
+					}
+				}
 			}
 		}
 
 		try {
-			let trigger = {};
-
-			if (actionType === "scheduled") {
-				// SCHEDULED
-				if (scheduleType === "date-time") {
-					trigger = {
-						schedule_type: "date-time",
-						datetime: scheduledDateTime.toISOString(),
-					};
-				} else {
-					trigger = {
-						schedule_type: "interval",
-						interval,
-					};
-				}
-			} else if (actionType === "triggeredSingle") {
-				// SINGLE DEVICE
-				if (selectedMetric === "powerState") {
-					trigger = {
-						type: "single_device",
-						location_id: selectedLocation,
-						bin_id: selectedBin,
-						device_id: selectedDevice,
-						metric: selectedMetric,
-						condition: selectedCondition,
-						value: selectedCondition === "eq" ? true : false,
-					};
-				} else {
-					trigger = {
-						type: "single_device",
-						location_id: selectedLocation,
-						bin_id: selectedBin,
-						device_id: selectedDevice,
-						metric: selectedMetric,
-						condition: selectedCondition,
-						value:
-							selectedCondition === "between"
-								? [conditionValue, secondaryConditionValue]
-								: conditionValue,
-					};
-				}
-			} else if (actionType === "triggeredComparison") {
-				// TWO DEVICE
-				if (selectedMetricComp === "powerState") {
-					trigger = {
-						type: "two_device_diff",
-						metric: selectedMetricComp, // Single metric applied to both devices
-						device1: {
-							location_id: selectedLocation1Comp,
-							bin_id: selectedBin1Comp,
-							device_id: selectedDevice1Comp,
-						},
-						device2: {
-							location_id: selectedLocation2Comp,
-							bin_id: selectedBin2Comp,
-							device_id: selectedDevice2Comp,
-						},
-						condition: differenceCondition,
-						value: differenceCondition === "eq" ? true : false,
-					};
-				} else {
-					trigger = {
-						type: "two_device_diff",
-						metric: selectedMetricComp, // Single metric applied to both devices
-						device1: {
-							location_id: selectedLocation1Comp,
-							bin_id: selectedBin1Comp,
-							device_id: selectedDevice1Comp,
-						},
-						device2: {
-							location_id: selectedLocation2Comp,
-							bin_id: selectedBin2Comp,
-							device_id: selectedDevice2Comp,
-						},
-						condition: differenceCondition,
-						value:
-							differenceCondition === "between"
-								? [differenceValue, differenceValue2]
-								: differenceValue,
-					};
-				}
-			}
-
 			// Process actions
 			const processedActions = actions.map((action) => {
 				switch (action.action_type) {
@@ -666,14 +765,26 @@ const AddAction = () => {
 				}
 			});
 
+			// Combine triggers with their conditions
+			const combinedTriggers = triggers.map((trigger, index) => {
+				const { conditionOperator, ...rest } = trigger;
+				return {
+					...rest,
+					conditionOperator: index === 0 ? null : trigger.conditionOperator,
+				};
+			});
+
 			const newAction = {
 				user_id: userId,
-				type: actionType === "scheduled" ? "scheduled" : "triggered",
-				trigger,
+				type: "triggered", // or "scheduled" based on your logic
+				triggers: combinedTriggers, // Ensure it's 'triggers' if backend expects
 				actions: processedActions,
 			};
+			console.log("Submitting new action:", newAction);
 
-			await ActionService.addAction(newAction);
+			const insertResult = await ActionService.addAction(newAction);
+			console.log("Insert Result:", insertResult);
+
 			Alert.alert("Success", "Action created successfully!");
 			resetForm();
 		} catch (error) {
@@ -686,10 +797,11 @@ const AddAction = () => {
 	const resetForm = () => {
 		setCurrentStep(1);
 		setActionType(null);
-		setScheduleType(null);
-		setScheduledDateTime(new Date());
-		setShowDatePicker(false);
-		setIntervalValue("");
+
+		// Added these for single time scheduling
+		setSelectedDays([]);
+		setCommonTime("");
+		setShowTimePicker(false);
 
 		// Single device
 		setSelectedLocation(null);
@@ -721,6 +833,87 @@ const AddAction = () => {
 
 		setActions([]);
 		setActionDropdownFocus({});
+		setTriggers([]);
+		setIsOperatorModalVisible(false);
+		setPendingOperator(null);
+		setEditingTriggerIndex(null);
+	};
+
+	/* ----------------------------------------------------------------
+	 * Handle Editing a Trigger
+	 * ---------------------------------------------------------------- */
+	const handleEditTrigger = (index) => {
+		const trigger = triggers[index];
+		setEditingTriggerIndex(index);
+
+		// Set actionType and other fields based on trigger.type
+		if (trigger.type === "scheduled") {
+			setActionType("scheduled");
+			// Updated for single time scheduling
+			setSelectedDays(trigger.days_of_week || []);
+			setCommonTime(trigger.common_time || "");
+		} else if (trigger.type === "single_device") {
+			setActionType("triggeredSingle");
+			setSelectedLocation(trigger.location_id);
+			setSelectedBin(trigger.bin_id);
+			setSelectedDevice(trigger.device_id);
+			setSelectedMetric(trigger.metric);
+			setSelectedCondition(trigger.condition);
+			if (trigger.metric !== "powerState") {
+				if (trigger.condition === "between") {
+					setConditionValue(trigger.value[0]);
+					setSecondaryConditionValue(trigger.value[1]);
+				} else {
+					setConditionValue(trigger.value);
+				}
+			}
+		} else if (trigger.type === "two_device_diff") {
+			setActionType("triggeredComparison");
+			setSelectedLocation1Comp(trigger.device1.location_id);
+			setSelectedBin1Comp(trigger.device1.bin_id);
+			setSelectedDevice1Comp(trigger.device1.device_id);
+			setSelectedMetricComp(trigger.metric);
+			setSelectedLocation2Comp(trigger.device2.location_id);
+			setSelectedBin2Comp(trigger.device2.bin_id);
+			setSelectedDevice2Comp(trigger.device2.device_id);
+			setDifferenceCondition(trigger.condition);
+			if (trigger.metric !== "powerState") {
+				if (trigger.condition === "between") {
+					setDifferenceValue(trigger.value[0]);
+					setDifferenceValue2(trigger.value[1]);
+				} else {
+					setDifferenceValue(trigger.value);
+				}
+			}
+		}
+
+		// Navigate to step 2
+		setCurrentStep(2);
+	};
+
+	/* ----------------------------------------------------------------
+	 * Handle Removing a Trigger
+	 * ---------------------------------------------------------------- */
+	const handleRemoveTrigger = (index) => {
+		Alert.alert(
+			"Confirm Removal",
+			"Are you sure you want to remove this trigger?",
+			[
+				{
+					text: "Cancel",
+					style: "cancel",
+				},
+				{
+					text: "Remove",
+					style: "destructive",
+					onPress: () => {
+						setTriggers((prevTriggers) =>
+							prevTriggers.filter((_, idx) => idx !== index)
+						);
+					},
+				},
+			]
+		);
 	};
 
 	/* ----------------------------------------------------------------
@@ -742,7 +935,7 @@ const AddAction = () => {
 				<View style={styles.triggerTextContainer}>
 					<Text style={styles.triggerTitle}>Scheduled Trigger</Text>
 					<Text style={styles.triggerDescription}>
-						Run actions at specific intervals
+						Run actions at specific times
 					</Text>
 				</View>
 			</TouchableOpacity>
@@ -784,81 +977,113 @@ const AddAction = () => {
 	);
 
 	/* ----------------------------------------------------------------
-	 * Rendering: Step 2 (Scheduled)
+	 * Rendering: Step 2 (Scheduled) - Updated for Single Time Scheduling
 	 * ---------------------------------------------------------------- */
 	const renderStep2Scheduled = () => (
 		<View style={styles.stepContainer}>
 			<Text style={styles.stepTitle}>Schedule Configuration</Text>
 
-			<Text style={styles.label}>Schedule Type</Text>
-			<View style={styles.badgeContainer}>
+			{/* Days of the Week Selection */}
+			<Text style={styles.label}>Select Days of the Week</Text>
+			<View style={styles.daysContainer}>
 				{[
-					{ label: "Specific Time", value: "date-time" },
-					{ label: "Repeating Interval", value: "interval" },
-				].map((option) => {
-					const isSelected = scheduleType === option.value;
+					"Monday",
+					"Tuesday",
+					"Wednesday",
+					"Thursday",
+					"Friday",
+					"Saturday",
+					"Sunday",
+				].map((day) => {
+					const isSelected = selectedDays.includes(day);
 					return (
 						<TouchableOpacity
-							key={option.value}
-							style={[
-								styles.badge,
-								isSelected && styles.badgeActive, // Use consistent selected style
-							]}
-							onPress={() => setScheduleType(option.value)}
+							key={day}
+							style={[styles.dayButton, isSelected && styles.dayButtonSelected]}
+							onPress={() => {
+								if (isSelected) {
+									// Deselect the day
+									setSelectedDays(selectedDays.filter((d) => d !== day));
+								} else {
+									// Select the day
+									setSelectedDays([...selectedDays, day]);
+								}
+							}}
 						>
 							<Text
 								style={[
-									styles.badgeText,
-									isSelected && styles.badgeTextActive, // Use consistent selected text style
+									styles.dayButtonText,
+									isSelected && styles.dayButtonTextSelected,
 								]}
 							>
-								{option.label}
+								{day.substring(0, 3)}
 							</Text>
 						</TouchableOpacity>
 					);
 				})}
 			</View>
 
-			{scheduleType === "date-time" && (
-				<>
-					<Text style={styles.label}>Select Date & Time</Text>
-					<TouchableOpacity
-						style={styles.datePickerButton}
-						onPress={() => setShowDatePicker(true)}
-					>
-						<MaterialIcons name="event" size={24} color="#71A12F" />
-						<Text style={styles.datePickerText}>
-							{scheduledDateTime.toLocaleString()}
-						</Text>
-					</TouchableOpacity>
-
-					{showDatePicker && (
-						<DateTimePicker
-							value={scheduledDateTime}
-							mode="datetime"
-							display="default"
-							onChange={(event, date) => {
-								setShowDatePicker(Platform.OS === "ios");
-								if (date) setScheduledDateTime(date);
-							}}
-						/>
+			{/* Common Time Selection */}
+			{selectedDays.length > 0 && (
+				<View style={styles.timePickerContainer}>
+					<Text style={styles.label}>
+						Set Common Time for All Selected Days
+					</Text>
+					{Platform.OS === "web" ? (
+						<View style={styles.webTimePickerContainer}>
+							<MaterialIcons name="access-time" size={24} color="#71A12F" />
+							{/* Integrate react-time-picker with custom className */}
+							<TimePickerWeb
+								onChange={(time) => setCommonTime(time)}
+								value={commonTime}
+								format="HH:mm"
+								className="time-picker"
+								clearIcon={null}
+								clockIcon={null}
+								disableClock={true}
+								// Optional: Add any additional props as needed
+							/>
+						</View>
+					) : (
+						<TouchableOpacity
+							style={styles.timePickerButton}
+							onPress={() => setShowTimePicker(true)}
+						>
+							<MaterialIcons name="access-time" size={24} color="#71A12F" />
+							<Text style={styles.timePickerText}>
+								{commonTime || "Select Time"}
+							</Text>
+						</TouchableOpacity>
 					)}
-				</>
+				</View>
 			)}
 
-			{scheduleType === "interval" && (
-				<>
-					<Text style={styles.label}>Repeat Interval</Text>
-					<TextInput
-						style={[styles.input, Platform.OS === "web" && styles.webInput]} // Added platform-specific styling
-						placeholder="e.g., 24h (24 hours), 1d (1 day)"
-						value={interval}
-						onChangeText={setIntervalValue}
-						autoCapitalize="none"
-						keyboardType="default"
-						placeholderTextColor="#888"
-					/>
-				</>
+			{/* Time Picker Modal for Mobile */}
+			{showTimePicker && Platform.OS !== "web" && (
+				<DateTimePicker
+					value={
+						commonTime ? new Date(`1970-01-01T${commonTime}:00`) : new Date()
+					}
+					mode="time"
+					display="default"
+					onChange={(event, selectedTime) => {
+						if (event.type === "dismissed") {
+							setShowTimePicker(false);
+							return;
+						}
+						setShowTimePicker(Platform.OS === "ios");
+						if (selectedTime) {
+							const hours = selectedTime.getHours().toString().padStart(2, "0");
+							const minutes = selectedTime
+								.getMinutes()
+								.toString()
+								.padStart(2, "0");
+							const timeString = `${hours}:${minutes}`;
+							setCommonTime(timeString);
+						}
+					}}
+					is24Hour={true} // Ensures 24-hour format for consistency
+				/>
 			)}
 		</View>
 	);
@@ -925,7 +1150,7 @@ const AddAction = () => {
 				)}
 
 				{selectedDevice && (
-					<>
+					<ScrollView>
 						<Text style={styles.label}>Select Metric</Text>
 
 						{metricsSingleLoading ? (
@@ -965,7 +1190,7 @@ const AddAction = () => {
 						)}
 
 						{selectedMetric && (
-							<>
+							<ScrollView>
 								<Text style={styles.label}>Condition</Text>
 								<ConditionBadge
 									options={getConditionOptions(selectedMetric)}
@@ -976,7 +1201,7 @@ const AddAction = () => {
 										setSecondaryConditionValue("");
 									}}
 								/>
-							</>
+							</ScrollView>
 						)}
 
 						{selectedCondition && selectedMetric !== "powerState" && (
@@ -1022,7 +1247,7 @@ const AddAction = () => {
 								)}
 							</>
 						)}
-					</>
+					</ScrollView>
 				)}
 			</View>
 		);
@@ -1036,210 +1261,213 @@ const AddAction = () => {
 			<View style={styles.stepContainer}>
 				<Text style={styles.stepTitle}>Configure Two-Device Comparison</Text>
 
-				{/* Device 1 */}
-				<Text style={styles.subSectionTitle}>Device 1</Text>
-				{locationsLoading ? (
-					<ActivityIndicator size="large" color="#71A12F" />
-				) : locationsError ? (
-					<View>
-						<Text style={styles.errorText}>{locationsError}</Text>
-						<TouchableOpacity
-							onPress={() => {
-								/* Retry Logic */
-								setLocationsError(null);
-								setLocationsLoading(true);
-								locationService
-									.getLocationsForUser(userId)
-									.then((userLocations) => {
-										console.log(
-											"Fetched userLocations from API:",
-											userLocations
-										);
-										setLocations(userLocations);
-									})
-									.catch((error) => {
-										console.error("Failed to load locations:", error);
-										setLocationsError("Failed to load locations");
-										Alert.alert("Error", "Failed to load locations");
-									})
-									.finally(() => {
-										setLocationsLoading(false);
-									});
+				<ScrollView contentContainerStyle={styles.stepContainerScroll}>
+					{/* Device 1 */}
+					<Text style={styles.subSectionTitle}>Device 1</Text>
+					{locationsLoading ? (
+						<ActivityIndicator size="large" color="#71A12F" />
+					) : locationsError ? (
+						<View>
+							<Text style={styles.errorText}>{locationsError}</Text>
+							<TouchableOpacity
+								onPress={() => {
+									/* Retry Logic */
+									setLocationsError(null);
+									setLocationsLoading(true);
+									locationService
+										.getLocationsForUser(userId)
+										.then((userLocations) => {
+											console.log(
+												"Fetched userLocations from API:",
+												userLocations
+											);
+											setLocations(userLocations);
+										})
+										.catch((error) => {
+											console.error("Failed to load locations:", error);
+											setLocationsError("Failed to load locations");
+											Alert.alert("Error", "Failed to load locations");
+										})
+										.finally(() => {
+											setLocationsLoading(false);
+										});
+								}}
+							>
+								<Text style={styles.retryText}>Tap to Retry</Text>
+							</TouchableOpacity>
+						</View>
+					) : locations.length === 0 ? (
+						<Text style={styles.infoText}>
+							You have no locations. Please add locations first.
+						</Text>
+					) : (
+						<LocationsList
+							data={locations}
+							selectedDevice={selectedDevice1Comp}
+							onDeviceSelect={(locId, binId, devId) => {
+								setSelectedLocation1Comp(locId);
+								setSelectedBin1Comp(binId);
+								setSelectedDevice1Comp(devId);
+								setSelectedMetricComp(null);
 							}}
-						>
-							<Text style={styles.retryText}>Tap to Retry</Text>
-						</TouchableOpacity>
-					</View>
-				) : locations.length === 0 ? (
-					<Text style={styles.infoText}>
-						You have no locations. Please add locations first.
-					</Text>
-				) : (
-					<LocationsList
-						data={locations}
-						selectedDevice={selectedDevice1Comp}
-						onDeviceSelect={(locId, binId, devId) => {
-							setSelectedLocation1Comp(locId);
-							setSelectedBin1Comp(binId);
-							setSelectedDevice1Comp(devId);
-							setSelectedMetricComp(null);
-						}}
-						selectable={true}
-					/>
-				)}
-
-				{/* Device 2 */}
-				<Text style={styles.subSectionTitle}>Device 2</Text>
-				{locationsLoading ? (
-					<ActivityIndicator size="large" color="#71A12F" />
-				) : locationsError ? (
-					<View>
-						<Text style={styles.errorText}>{locationsError}</Text>
-						<TouchableOpacity
-							onPress={() => {
-								/* Retry Logic */
-								setLocationsError(null);
-								setLocationsLoading(true);
-								locationService
-									.getLocationsForUser(userId)
-									.then((userLocations) => {
-										console.log(
-											"Fetched userLocations from API:",
-											userLocations
-										);
-										setLocations(userLocations);
-									})
-									.catch((error) => {
-										console.error("Failed to load locations:", error);
-										setLocationsError("Failed to load locations");
-										Alert.alert("Error", "Failed to load locations");
-									})
-									.finally(() => {
-										setLocationsLoading(false);
-									});
-							}}
-						>
-							<Text style={styles.retryText}>Tap to Retry</Text>
-						</TouchableOpacity>
-					</View>
-				) : locations.length === 0 ? (
-					<Text style={styles.infoText}>
-						You have no locations. Please add locations first.
-					</Text>
-				) : deviceType1 ? (
-					<LocationsList
-						data={filteredLocationsForDevice2}
-						selectedDevice={selectedDevice2Comp}
-						onDeviceSelect={(locId, binId, devId) => {
-							setSelectedLocation2Comp(locId);
-							setSelectedBin2Comp(binId);
-							setSelectedDevice2Comp(devId);
-						}}
-						selectable={true}
-					/>
-				) : (
-					<Text style={styles.infoText}>
-						Select Device 1 first to choose Device 2
-					</Text>
-				)}
-
-				{selectedDevice2Comp && (
-					<>
-						<Text style={styles.label}>Select Metric</Text>
-						{metricsCompLoading ? (
-							<ActivityIndicator size="large" color="#71A12F" />
-						) : (
-							<View style={styles.badgeContainer}>
-								{metricsComp.map((metricOption) => {
-									const isActive = selectedMetricComp === metricOption.value;
-									return (
-										<TouchableOpacity
-											key={metricOption.value}
-											style={[styles.badge, isActive && styles.badgeActive]}
-											onPress={() => {
-												setSelectedMetricComp(metricOption.value);
-											}}
-										>
-											<MaterialIcons
-												name={metricIcons[metricOption.value] || "device-hub"}
-												size={24}
-												color="#71A12F"
-											/>
-											<Text
-												style={[
-													styles.badgeText,
-													isActive && styles.badgeTextActive,
-												]}
-											>
-												{metricOption.label}
-											</Text>
-										</TouchableOpacity>
-									);
-								})}
-							</View>
-						)}
-					</>
-				)}
-
-				{/* Single Metric for Both Devices */}
-				{selectedDevice2Comp && selectedMetricComp && (
-					<>
-						<Text style={styles.label}>Difference Condition</Text>
-						<ConditionBadge
-							options={getDifferenceConditionOptions()}
-							selectedValue={differenceCondition}
-							onSelect={(value) => {
-								setDifferenceCondition(value);
-								setDifferenceValue("");
-								setDifferenceValue2("");
-							}}
+							selectable={true}
 						/>
+					)}
 
-						{differenceCondition && selectedMetricComp !== "powerState" && (
-							<>
-								<Text style={styles.label}>
-									{differenceCondition === "between"
-										? "Min Difference"
-										: "Difference Value"}
-								</Text>
-								<TextInput
-									style={[
-										styles.input,
-										Platform.OS === "web" && styles.webInput,
-									]} // Added platform-specific styling
-									keyboardType="numeric"
-									value={differenceValue}
-									onChangeText={setDifferenceValue}
-									placeholder={
-										differenceCondition === "between"
-											? "Enter Minimum Difference"
-											: "Enter Difference Value"
-									}
-									autoCapitalize="none"
-									placeholderTextColor="#888"
-								/>
+					{/* Device 2 */}
+					<Text style={styles.subSectionTitle}>Device 2</Text>
+					{locationsLoading ? (
+						<ActivityIndicator size="large" color="#71A12F" />
+					) : locationsError ? (
+						<View>
+							<Text style={styles.errorText}>{locationsError}</Text>
+							<TouchableOpacity
+								onPress={() => {
+									/* Retry Logic */
+									setLocationsError(null);
+									setLocationsLoading(true);
+									locationService
+										.getLocationsForUser(userId)
+										.then((userLocations) => {
+											console.log(
+												"Fetched userLocations from API:",
+												userLocations
+											);
+											setLocations(userLocations);
+										})
+										.catch((error) => {
+											console.error("Failed to load locations:", error);
+											setLocationsError("Failed to load locations");
+											Alert.alert("Error", "Failed to load locations");
+										})
+										.finally(() => {
+											setLocationsLoading(false);
+										});
+								}}
+							>
+								<Text style={styles.retryText}>Tap to Retry</Text>
+							</TouchableOpacity>
+						</View>
+					) : locations.length === 0 ? (
+						<Text style={styles.infoText}>
+							You have no locations. Please add locations first.
+						</Text>
+					) : deviceType1 ? (
+						<LocationsList
+							data={filteredLocationsForDevice2}
+							selectedDevice={selectedDevice2Comp}
+							onDeviceSelect={(locId, binId, devId) => {
+								setSelectedLocation2Comp(locId);
+								setSelectedBin2Comp(binId);
+								setSelectedDevice2Comp(devId);
+							}}
+							selectable={true}
+						/>
+					) : (
+						<Text style={styles.infoText}>
+							Select Device 1 first to choose Device 2
+						</Text>
+					)}
 
-								{differenceCondition === "between" && (
-									<>
-										<Text style={styles.label}>Max Difference</Text>
-										<TextInput
-											style={[
-												styles.input,
-												Platform.OS === "web" && styles.webInput,
-											]} // Corrected component name and added platform-specific styling
-											keyboardType="numeric"
-											value={differenceValue2}
-											onChangeText={setDifferenceValue2}
-											placeholder="Enter Maximum Difference"
-											autoCapitalize="none"
-											placeholderTextColor="#888"
-										/>
-									</>
-								)}
-							</>
-						)}
-					</>
-				)}
+					{selectedDevice2Comp && (
+						<>
+							<Text style={styles.label}>Select Metric</Text>
+							{metricsCompLoading ? (
+								<ActivityIndicator size="large" color="#71A12F" />
+							) : (
+								<View style={styles.badgeContainer}>
+									{metricsComp.map((metricOption) => {
+										const isActive = selectedMetricComp === metricOption.value;
+										return (
+											<TouchableOpacity
+												key={metricOption.value}
+												style={[styles.badge, isActive && styles.badgeActive]}
+												onPress={() => {
+													setSelectedMetricComp(metricOption.value);
+												}}
+											>
+												<MaterialIcons
+													name={metricIcons[metricOption.value] || "device-hub"}
+													size={24}
+													color="#71A12F"
+												/>
+												<Text
+													style={[
+														styles.badgeText,
+														isActive && styles.badgeTextActive,
+													]}
+												>
+													{metricOption.label}
+												</Text>
+											</TouchableOpacity>
+										);
+									})}
+								</View>
+							)}
+
+							{/* Single Metric for Both Devices */}
+							{selectedMetricComp && (
+								<>
+									<Text style={styles.label}>Difference Condition</Text>
+									<ConditionBadge
+										options={getDifferenceConditionOptions()}
+										selectedValue={differenceCondition}
+										onSelect={(value) => {
+											setDifferenceCondition(value);
+											setDifferenceValue("");
+											setDifferenceValue2("");
+										}}
+									/>
+
+									{differenceCondition &&
+										selectedMetricComp !== "powerState" && (
+											<>
+												<Text style={styles.label}>
+													{differenceCondition === "between"
+														? "Min Difference"
+														: "Difference Value"}
+												</Text>
+												<TextInput
+													style={[
+														styles.input,
+														Platform.OS === "web" && styles.webInput,
+													]}
+													keyboardType="numeric"
+													value={differenceValue}
+													onChangeText={setDifferenceValue}
+													placeholder={
+														differenceCondition === "between"
+															? "Enter Minimum Difference"
+															: "Enter Difference Value"
+													}
+													autoCapitalize="none"
+													placeholderTextColor="#888"
+												/>
+
+												{differenceCondition === "between" && (
+													<>
+														<Text style={styles.label}>Max Difference</Text>
+														<TextInput
+															style={[
+																styles.input,
+																Platform.OS === "web" && styles.webInput,
+															]}
+															keyboardType="numeric"
+															value={differenceValue2}
+															onChangeText={setDifferenceValue2}
+															placeholder="Enter Maximum Difference"
+															autoCapitalize="none"
+															placeholderTextColor="#888"
+														/>
+													</>
+												)}
+											</>
+										)}
+								</>
+							)}
+						</>
+					)}
+				</ScrollView>
 			</View>
 		);
 	};
@@ -1294,137 +1522,181 @@ const AddAction = () => {
 				<View style={styles.summaryBox}>
 					<Text style={styles.subSectionTitle}>Trigger Summary</Text>
 
-					{/* Display based on actionType */}
-					{actionType === "scheduled" && (
-						<>
-							<SummaryRow
-								icon="schedule"
-								label="Type"
-								value="Scheduled"
-								highlight
-							/>
-							{scheduleType === "date-time" ? (
+					{/* Display all triggers with their conditions */}
+					{triggers.map((trigger, index) => (
+						<View key={index}>
+							{trigger.condition && index > 0 && (
 								<SummaryRow
-									icon="event"
-									label="Specific Time"
-									value={scheduledDateTime.toLocaleString()}
+									icon={
+										trigger.condition === "and" ? "toggle-on" : "toggle-off"
+									}
+									label={`Condition between Trigger ${index} and Trigger ${
+										index + 1
+									}`}
+									value={trigger.condition.toUpperCase()}
 								/>
-							) : (
-								<SummaryRow icon="loop" label="Interval" value={interval} />
 							)}
-						</>
-					)}
+							{/* Display trigger details */}
+							{trigger.type === "scheduled" && (
+								<>
+									<SummaryRow
+										icon="schedule"
+										label="Type"
+										value="Scheduled"
+										highlight
+									/>
+									<SummaryRow
+										icon="calendar-today"
+										label="Days of Week"
+										value={trigger.days_of_week.join(", ")}
+									/>
+									<SummaryRow
+										icon="access-time"
+										label={`Common Time`}
+										value={trigger.common_time}
+									/>
+								</>
+							)}
 
-					{actionType === "triggeredSingle" && (
-						<>
-							<SummaryRow
-								icon="sensors"
-								label="Type"
-								value="Single-Device Trigger"
-								highlight
-							/>
-							<SummaryRow
-								icon="device-hub"
-								label="Device"
-								value={
-									locations
-										.flatMap((loc) => loc.bins)
-										.flatMap((bin) => bin.devices)
-										.find((d) => {
-											console.log("looking for device ", d);
-											return d.id === selectedDevice;
-										})?.name || "Unknown"
-								}
-							/>
-							<SummaryRow
-								icon={metricIcons[selectedMetric] || "analytics"}
-								label="Metric"
-								value={
-									metricsSingle.find((m) => {
-										console.log("this is my metric", m);
-										return m.label === selectedMetric;
-									})?.name || "N/A"
-								}
-							/>
-							<SummaryRow
-								icon="compare"
-								label="Condition"
-								value={
-									selectedMetric === "powerState"
-										? selectedCondition === "eq"
-											? "Is On"
-											: "Is Off"
-										: selectedCondition === "between"
-											? `${conditionValue} - ${secondaryConditionValue}`
-											: conditionValue
-								}
-							/>
-						</>
-					)}
+							{trigger.type === "single_device" && (
+								<>
+									<SummaryRow
+										icon="sensors"
+										label="Type"
+										value="Single-Device Trigger"
+										highlight
+									/>
+									<SummaryRow
+										icon="device-hub"
+										label="Device"
+										value={
+											locations
+												.flatMap((loc) => loc.bins)
+												.flatMap((bin) => bin.devices)
+												.find((d) => d.value === trigger.device_id)?.name ||
+											"Unknown"
+										}
+									/>
+									<SummaryRow
+										icon={metricIcons[trigger.metric] || "analytics"}
+										label="Metric"
+										value={
+											metricsSingle.find((m) => m.value === trigger.metric)
+												?.label || "N/A"
+										}
+									/>
+									<SummaryRow
+										icon="compare"
+										label="Condition"
+										value={
+											trigger.metric === "powerState"
+												? trigger.value === true
+													? "Is On"
+													: "Is Off"
+												: trigger.condition === "between"
+													? `${trigger.value[0]} - ${trigger.value[1]}`
+													: trigger.value
+										}
+									/>
+								</>
+							)}
 
-					{actionType === "triggeredComparison" && (
-						<>
-							<SummaryRow
-								icon="compare-arrows"
-								label="Type"
-								value="Two-Device Comparison"
-								highlight
-							/>
-							<SummaryRow
-								icon="device-hub"
-								label="Device 1"
-								value={
-									locations
-										.flatMap((loc) => loc.bins)
-										.flatMap((bin) => bin.devices)
-										.find((d) => d.id === selectedDevice1Comp)?.name ||
-									"Unknown"
-								}
-							/>
-							<SummaryRow
-								icon="device-hub"
-								label="Device 2"
-								value={
-									locations
-										.flatMap((loc) => loc.bins)
-										.flatMap((bin) => bin.devices)
-										.find((d) => d.id === selectedDevice2Comp)?.name ||
-									"Unknown"
-								}
-							/>
-							<SummaryRow
-								icon={metricIcons[selectedMetricComp] || "analytics"}
-								label="Metric"
-								value={
-									metricsComp.find((m) => m.value === selectedMetricComp)
-										?.label || "N/A"
-								}
-							/>
-							<SummaryRow
-								icon="rule"
-								label="Difference Condition"
-								value={
-									selectedMetricComp === "powerState"
-										? differenceCondition === "eq"
-											? "Difference Is On"
-											: "Difference Is Off"
-										: differenceCondition === "between"
-											? `${differenceValue} - ${differenceValue2}`
-											: differenceValue
-								}
-							/>
-						</>
-					)}
+							{trigger.type === "two_device_diff" && (
+								<>
+									<SummaryRow
+										icon="compare-arrows"
+										label="Type"
+										value="Two-Device Comparison"
+										highlight
+									/>
+									<SummaryRow
+										icon="device-hub"
+										label="Device 1"
+										value={
+											locations
+												.flatMap((loc) => loc.bins)
+												.flatMap((bin) => bin.devices)
+												.find((d) => d.value === trigger.device1.device_id)
+												?.name || "Unknown"
+										}
+									/>
+									<SummaryRow
+										icon="device-hub"
+										label="Device 2"
+										value={
+											locations
+												.flatMap((loc) => loc.bins)
+												.flatMap((bin) => bin.devices)
+												.find((d) => d.value === trigger.device2.device_id)
+												?.name || "Unknown"
+										}
+									/>
+									<SummaryRow
+										icon={metricIcons[trigger.metric] || "analytics"}
+										label="Metric"
+										value={
+											metricsComp.find((m) => m.value === trigger.metric)
+												?.label || "N/A"
+										}
+									/>
+									<SummaryRow
+										icon="rule"
+										label="Difference Condition"
+										value={
+											trigger.metric === "powerState"
+												? trigger.value === true
+													? "Difference Is On"
+													: "Difference Is Off"
+												: trigger.condition === "between"
+													? `${trigger.value[0]} - ${trigger.value[1]}`
+													: trigger.value
+										}
+									/>
+								</>
+							)}
+
+							{/* Edit and Remove Buttons */}
+							<View style={styles.triggerActionsContainer}>
+								<TouchableOpacity
+									style={styles.editButton}
+									onPress={() => handleEditTrigger(index)}
+								>
+									<MaterialIcons name="edit" size={20} color="#FFF" />
+									<Text style={styles.editButtonText}>Edit</Text>
+								</TouchableOpacity>
+								<TouchableOpacity
+									style={styles.removeButtonSummary}
+									onPress={() => handleRemoveTrigger(index)}
+								>
+									<MaterialIcons name="delete" size={20} color="#FFF" />
+									<Text style={styles.removeButtonTextSummary}>Remove</Text>
+								</TouchableOpacity>
+							</View>
+						</View>
+					))}
 				</View>
 			);
 		};
 
 		return (
-			<View style={styles.stepContainer}>
-				<Text style={styles.stepTitle}>Summary & Actions</Text>
+			<ScrollView style={styles.stepContainer}>
+				<Text style={styles.stepTitle}>When: </Text>
 
 				{/* Trigger Summary Card */}
 				{renderTriggerSummary()}
+
+				{/* **Add Trigger with AND/OR** */}
+				<TouchableOpacity
+					style={styles.addButton}
+					onPress={() => {
+						setIsOperatorModalVisible(true);
+					}}
+				>
+					<MaterialIcons name="add" size={20} color="#FFF" />
+					<Text style={styles.addButtonText}>Add Trigger</Text>
+				</TouchableOpacity>
+
+				<Text style={styles.stepTitle}>Do: </Text>
 
 				{/* Actions Configuration */}
 				<Text style={styles.subSectionTitle}>Actions</Text>
@@ -1487,26 +1759,54 @@ const AddAction = () => {
 								action.action_type === "turn_off_relay") && (
 								<>
 									<Text style={styles.label}>Select Relay Device</Text>
-									<Dropdown
-										style={styles.dropdown}
-										placeholderStyle={styles.placeholderStyle}
-										selectedTextStyle={styles.selectedTextStyle}
-										inputSearchStyle={styles.inputSearchStyle}
-										iconStyle={styles.iconStyle}
-										data={devicesForBin.map((dev) => ({
-											label: dev.label,
-											value: dev.value,
-										}))}
-										search={false}
-										maxHeight={300}
-										labelField="label"
-										valueField="value"
-										placeholder="Select Device"
-										value={action.device_id}
-										onChange={(item) =>
-											handleUpdateAction(index, "device_id", item.value)
-										}
-									/>
+									{locationsLoading ? (
+										<ActivityIndicator size="small" color="#71A12F" />
+									) : locationsError ? (
+										<View>
+											<Text style={styles.errorText}>{locationsError}</Text>
+											<TouchableOpacity
+												onPress={() => {
+													/* Retry Logic */
+													setLocationsError(null);
+													setLocationsLoading(true);
+													locationService
+														.getLocationsForUser(userId)
+														.then((userLocations) => {
+															console.log(
+																"Fetched userLocations from API:",
+																userLocations
+															);
+															setLocations(userLocations);
+														})
+														.catch((error) => {
+															console.error("Failed to load locations:", error);
+															setLocationsError("Failed to load locations");
+															Alert.alert("Error", "Failed to load locations");
+														})
+														.finally(() => {
+															setLocationsLoading(false);
+														});
+												}}
+											>
+												<Text style={styles.retryText}>Tap to Retry</Text>
+											</TouchableOpacity>
+										</View>
+									) : locations.length === 0 ? (
+										<Text style={styles.infoText}>
+											You have no locations. Please add locations first.
+										</Text>
+									) : (
+										<LocationsList
+											data={locations}
+											selectedDevice={action.device_id}
+											onDeviceSelect={(locId, binId, devId) => {
+												handleUpdateAction(index, "location_id", locId);
+												handleUpdateAction(index, "bin_id", binId);
+												handleUpdateAction(index, "device_id", devId);
+											}}
+											selectable={true}
+										/>
+									)}
 								</>
 							)}
 
@@ -1560,7 +1860,44 @@ const AddAction = () => {
 						</TouchableOpacity>
 					</View>
 				</Modal>
-			</View>
+
+				{/* **Operator Selection Modal** */}
+				<Modal
+					visible={isOperatorModalVisible}
+					transparent={true}
+					animationType="fade"
+					onRequestClose={() => setIsOperatorModalVisible(false)}
+				>
+					<View style={styles.modalOverlay}>
+						<View style={styles.operatorModalContent}>
+							<Text style={styles.modalTitle}>Add Another Trigger</Text>
+							<Text style={styles.modalSubtitle}>
+								Choose a logical operator to connect with the existing triggers:
+							</Text>
+							<TouchableOpacity
+								style={styles.operatorButton}
+								onPress={() => handleOperatorSelection("and")}
+							>
+								<Text style={styles.operatorButtonText}>AND</Text>
+							</TouchableOpacity>
+							<TouchableOpacity
+								style={styles.operatorButton}
+								onPress={() => handleOperatorSelection("or")}
+							>
+								<Text style={styles.operatorButtonText}>OR</Text>
+							</TouchableOpacity>
+							<TouchableOpacity
+								style={styles.modalCloseButton}
+								onPress={() => setIsOperatorModalVisible(false)}
+							>
+								<Text style={styles.modalCloseButtonText}>
+									Proceed to Actions
+								</Text>
+							</TouchableOpacity>
+						</View>
+					</View>
+				</Modal>
+			</ScrollView>
 		);
 	};
 
@@ -1582,71 +1919,162 @@ const AddAction = () => {
 
 	return (
 		<SafeAreaView style={styles.safeArea}>
-			<ScrollView contentContainerStyle={styles.container}>
-				{/* Header */}
-				<View style={styles.headerContainer}>
-					<BackButton label="Back" />
-					<Text style={styles.headerTitle}>Create New Action</Text>
-					<View style={{ width: 24 }} />
-				</View>
+			{Platform.OS !== "web" ? (
+				<TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+					<View style={styles.container}>
+						{/* Header */}
+						<View style={styles.backContainer}>
+							<BackButton label="Back" />
+						</View>
 
-				{/* Progress Bar */}
-				<View style={styles.progressContainer}>
-					<Progress.Bar
-						progress={currentStep / steps.length}
-						width={null}
-						color="#71A12F"
-						unfilledColor="#E0E0E0"
-						borderWidth={0}
-						height={10}
-						borderRadius={5}
-					/>
-					<Text style={styles.progressText}>
-						Step {currentStep} of {steps.length}: {steps[currentStep - 1]}
-					</Text>
-				</View>
+						<View style={styles.headerContainer}>
+							<Text style={styles.headerTitle}>Create New Action</Text>
+							<View style={{ width: 24 }} />
+						</View>
 
-				{/* Step Content */}
-				<View style={styles.sectionContainer}>{renderCurrentStep()}</View>
+						{/* Progress Bar */}
+						<View style={styles.progressContainer}>
+							<Progress.Bar
+								progress={currentStep / steps.length}
+								width={null}
+								color="#71A12F"
+								unfilledColor="#E0E0E0"
+								borderWidth={0}
+								height={10}
+								borderRadius={5}
+							/>
+							<Text style={styles.progressText}>
+								Step {currentStep} of {steps.length}: {steps[currentStep - 1]}
+							</Text>
+						</View>
 
-				{/* Navigation Buttons */}
-				<View style={styles.navigationContainer}>
-					{currentStep > 1 && (
-						<TouchableOpacity
-							style={styles.nextButton}
-							onPress={handlePreviousStep}
-						>
-							<MaterialIcons name="arrow-back" size={24} color="#FFF" />
-							<Text style={styles.nextButtonText}>Back</Text>
-						</TouchableOpacity>
+						{/* Content Area */}
+						<View style={styles.contentContainer}>{renderCurrentStep()}</View>
+
+						{/* Navigation Buttons */}
+						{currentStep < 3 && (
+							<View style={styles.navigationContainer}>
+								{currentStep > 1 && (
+									<TouchableOpacity
+										style={styles.nextButton}
+										onPress={handlePreviousStep}
+									>
+										<MaterialIcons name="arrow-back" size={24} color="#FFF" />
+										<Text style={styles.nextButtonText}>Back</Text>
+									</TouchableOpacity>
+								)}
+								{currentStep < steps.length && (
+									<TouchableOpacity
+										style={styles.nextButton}
+										onPress={handleNextStep}
+									>
+										<Text style={styles.nextButtonText}>Next</Text>
+										<MaterialIcons
+											name="arrow-forward"
+											size={24}
+											color="#FFF"
+										/>
+									</TouchableOpacity>
+								)}
+							</View>
+						)}
+
+						{/* Submit Button only on step3 */}
+						{currentStep === 3 && (
+							<View style={styles.navigationContainer}>
+								{triggers.length > 0 && actions.length > 0 && (
+									<TouchableOpacity
+										style={styles.submitButton}
+										onPress={handleFinalSubmit}
+									>
+										<MaterialIcons name="save" size={24} color="#FFF" />
+										<Text style={styles.submitButtonText}>Save Automation</Text>
+									</TouchableOpacity>
+								)}
+							</View>
+						)}
+					</View>
+				</TouchableWithoutFeedback>
+			) : (
+				<View style={styles.container}>
+					{/* Header */}
+					<View style={styles.backContainer}>
+						<BackButton label="Back" />
+					</View>
+
+					<View style={styles.headerContainer}>
+						<Text style={styles.headerTitle}>Create New Action</Text>
+						<View style={{ width: 24 }} />
+					</View>
+
+					{/* Progress Bar */}
+					<View style={styles.progressContainer}>
+						<Progress.Bar
+							progress={currentStep / steps.length}
+							width={null}
+							color="#71A12F"
+							unfilledColor="#E0E0E0"
+							borderWidth={0}
+							height={10}
+							borderRadius={5}
+						/>
+						<Text style={styles.progressText}>
+							Step {currentStep} of {steps.length}: {steps[currentStep - 1]}
+						</Text>
+					</View>
+
+					{/* Content Area */}
+					<View style={styles.contentContainer}>{renderCurrentStep()}</View>
+
+					{/* Navigation Buttons */}
+					{currentStep < 3 && (
+						<View style={styles.navigationContainer}>
+							{currentStep > 1 && (
+								<TouchableOpacity
+									style={styles.nextButton}
+									onPress={handlePreviousStep}
+								>
+									<MaterialIcons name="arrow-back" size={24} color="#FFF" />
+									<Text style={styles.nextButtonText}>Back</Text>
+								</TouchableOpacity>
+							)}
+							{currentStep < steps.length && (
+								<TouchableOpacity
+									style={styles.nextButton}
+									onPress={handleNextStep}
+								>
+									<Text style={styles.nextButtonText}>Next</Text>
+									<MaterialIcons name="arrow-forward" size={24} color="#FFF" />
+								</TouchableOpacity>
+							)}
+						</View>
 					)}
-					{currentStep < steps.length && (
-						<TouchableOpacity
-							style={styles.nextButton}
-							onPress={handleNextStep}
-						>
-							<Text style={styles.nextButtonText}>Next</Text>
-							<MaterialIcons name="arrow-forward" size={24} color="#FFF" />
-						</TouchableOpacity>
-					)}
-					{currentStep === steps.length && (
-						<TouchableOpacity
-							style={styles.submitButton}
-							onPress={handleSubmit}
-						>
-							<MaterialIcons name="save" size={24} color="#FFF" />
-							<Text style={styles.submitButtonText}>Save Automation</Text>
-						</TouchableOpacity>
+
+					{/* Submit Button only on step3 */}
+					{currentStep === 3 && (
+						<View style={styles.navigationContainer}>
+							{triggers.length > 0 && actions.length > 0 && (
+								<TouchableOpacity
+									style={styles.submitButton}
+									onPress={handleFinalSubmit}
+								>
+									<MaterialIcons name="save" size={24} color="#FFF" />
+									<Text style={styles.submitButtonText}>Save Automation</Text>
+								</TouchableOpacity>
+							)}
+						</View>
 					)}
 				</View>
-			</ScrollView>
+			)}
 		</SafeAreaView>
 	);
 };
 
 export default AddAction;
 
-// Example color palette (you could define this at the top of your file or in a separate theme/colors file)
+/* ----------------------------------------------------------------
+ * Example color palette (you could define this at the top of your file or in a separate theme/colors file)
+ * ---------------------------------------------------------------- */
 const COLORS = {
 	primary: "#71A12F",
 	background: "#F5F5F5",
@@ -1657,6 +2085,7 @@ const COLORS = {
 	error: "#F44336",
 };
 
+// Sizes for consistency
 const SIZES = {
 	base: 16, // a base spacing unit
 	radius: 8, // standard border radius
@@ -1668,13 +2097,24 @@ const styles = StyleSheet.create({
 		backgroundColor: COLORS.background,
 	},
 	container: {
+		flex: 1,
 		padding: SIZES.base,
 		paddingBottom: SIZES.base * 2,
+		marginBottom: 0,
+	},
+	backContainer: {
+		flexDirection: "row",
+		alignItems: "center",
+		marginBottom: 0,
+		paddingBottom: 0,
+		padding: 0,
 	},
 	headerContainer: {
 		flexDirection: "row",
 		alignItems: "center",
-		marginBottom: SIZES.base * 1.25,
+		marginTop: 0,
+		paddingTop: 0,
+		marginBottom: 10,
 	},
 	headerTitle: {
 		flex: 1,
@@ -1693,6 +2133,12 @@ const styles = StyleSheet.create({
 		color: COLORS.textDark,
 		fontSize: 14,
 	},
+	contentContainer: {
+		flex: 1,
+	},
+	scrollContent: {
+		paddingBottom: SIZES.base * 2,
+	},
 	sectionContainer: {
 		borderRadius: SIZES.radius,
 		padding: SIZES.base,
@@ -1702,6 +2148,9 @@ const styles = StyleSheet.create({
 
 	/* Step Titles */
 	stepContainer: {},
+	stepContainerScroll: {
+		paddingBottom: SIZES.base * 2,
+	},
 	stepTitle: {
 		fontSize: 18,
 		fontWeight: "600",
@@ -1715,8 +2164,8 @@ const styles = StyleSheet.create({
 		width: "100%",
 		backgroundColor: COLORS.white,
 		borderRadius: SIZES.radius,
-		padding: 20,
-		marginBottom: 15,
+		padding: 15, // Reduced padding for compactness
+		marginBottom: 10, // Reduced margin
 		borderWidth: 2,
 		borderColor: COLORS.border,
 		flexDirection: "row",
@@ -1727,14 +2176,14 @@ const styles = StyleSheet.create({
 		backgroundColor: "#F8FCF3",
 	},
 	triggerTextContainer: {
-		marginLeft: 15,
+		marginLeft: 10, // Reduced margin
 		flex: 1,
 	},
 	triggerTitle: {
 		fontSize: 16,
 		fontWeight: "600",
 		color: COLORS.textDark,
-		marginBottom: 5,
+		marginBottom: 3, // Reduced margin
 	},
 	triggerDescription: {
 		fontSize: 14,
@@ -1745,16 +2194,16 @@ const styles = StyleSheet.create({
 	label: {
 		fontSize: 16,
 		color: COLORS.textDark,
-		marginBottom: 6,
+		marginBottom: 4, // Reduced margin
 	},
 	dropdown: {
 		backgroundColor: "#F9F9F9",
 		borderColor: COLORS.border,
 		borderRadius: SIZES.radius,
-		marginBottom: 15,
+		marginBottom: 10, // Reduced margin
 		paddingLeft: 12,
 		paddingRight: 12,
-		height: 50,
+		height: 45, // Reduced height
 	},
 	placeholderStyle: {
 		fontSize: 16,
@@ -1773,33 +2222,34 @@ const styles = StyleSheet.create({
 		height: 20,
 		display: "none",
 	},
+
 	input: {
 		backgroundColor: "#F9F9F9",
 		borderRadius: SIZES.radius,
-		padding: 12,
+		padding: 12, // Reduced padding
 		fontSize: 16,
 		color: COLORS.textDark,
-		marginBottom: 15,
+		marginBottom: 12, // Reduced margin
 		borderWidth: 1,
 		borderColor: COLORS.border,
 	},
 	webInput: {
 		outlineStyle: "none", // Removes the outline specifically for web
-	} as any,
+	},
 
 	/* Date Picker */
 	datePickerButton: {
 		flexDirection: "row",
 		alignItems: "center",
 		backgroundColor: "#F9F9F9",
-		padding: 12,
+		padding: 10, // Reduced padding
 		borderRadius: SIZES.radius,
-		marginBottom: 15,
+		marginBottom: 10, // Reduced margin
 		borderWidth: 1,
 		borderColor: COLORS.border,
 	},
 	datePickerText: {
-		marginLeft: 10,
+		marginLeft: 8, // Reduced margin
 		fontSize: 16,
 		color: COLORS.textDark,
 	},
@@ -1809,17 +2259,17 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		flexWrap: "wrap",
 		justifyContent: "center",
-		marginBottom: 15,
+		marginBottom: 10, // Reduced margin
 	},
 	badge: {
 		flexDirection: "row",
 		alignItems: "center",
-		paddingVertical: 8,
-		paddingHorizontal: 12,
+		paddingVertical: 6, // Reduced padding
+		paddingHorizontal: 10, // Reduced padding
 		borderWidth: 1,
 		borderColor: COLORS.border,
 		borderRadius: 20,
-		margin: 4,
+		margin: 3, // Reduced margin
 		backgroundColor: "#F9F9F9",
 	},
 	badgeActive: {
@@ -1840,8 +2290,8 @@ const styles = StyleSheet.create({
 		fontSize: 16,
 		fontWeight: "bold",
 		color: COLORS.textDark,
-		marginBottom: 8,
-		marginTop: 10,
+		marginBottom: 6, // Reduced margin
+		marginTop: 8, // Reduced margin
 	},
 
 	/* Step Navigation */
@@ -1849,17 +2299,21 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		justifyContent: "space-between",
 		alignItems: "center",
+		paddingTop: SIZES.base,
+		borderTopWidth: 1,
+		borderColor: COLORS.border,
+		backgroundColor: COLORS.background,
 	},
 	nextButton: {
 		flexDirection: "row",
 		alignItems: "center",
 		backgroundColor: COLORS.primary,
 		paddingVertical: 10,
-		paddingHorizontal: 15,
+		paddingHorizontal: 12, // Reduced padding
 		borderRadius: SIZES.radius,
 		justifyContent: "center",
 		flex: 1,
-		marginHorizontal: 5,
+		marginHorizontal: 4, // Reduced margin
 	},
 	nextButtonText: {
 		color: COLORS.white,
@@ -1870,11 +2324,11 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		alignItems: "center",
 		backgroundColor: COLORS.primary,
-		paddingVertical: 15,
-		paddingHorizontal: 20,
+		paddingVertical: 12, // Reduced padding
+		paddingHorizontal: 16, // Reduced padding
 		borderRadius: SIZES.radius,
 		alignSelf: "center",
-		marginTop: 10,
+		marginTop: 8, // Reduced margin
 	},
 	submitButtonText: {
 		color: COLORS.white,
@@ -1885,7 +2339,7 @@ const styles = StyleSheet.create({
 
 	/* Actions List */
 	actionItem: {
-		marginBottom: 15,
+		marginBottom: 12, // Reduced margin
 		borderWidth: 1,
 		borderColor: COLORS.border,
 		borderRadius: SIZES.radius,
@@ -1895,7 +2349,7 @@ const styles = StyleSheet.create({
 	removeButton: {
 		flexDirection: "row",
 		alignItems: "center",
-		marginTop: 10,
+		marginTop: 8, // Reduced margin
 	},
 	removeButtonText: {
 		fontSize: 16,
@@ -1906,10 +2360,10 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 		backgroundColor: COLORS.primary,
 		paddingVertical: 10,
-		paddingHorizontal: 15,
+		paddingHorizontal: 12, // Reduced padding
 		borderRadius: SIZES.radius,
 		alignSelf: "flex-start",
-		marginTop: 10,
+		marginTop: 8, // Reduced margin
 	},
 	addButtonText: {
 		color: COLORS.white,
@@ -1922,34 +2376,64 @@ const styles = StyleSheet.create({
 	errorText: {
 		color: COLORS.error,
 		fontSize: 16,
-		marginBottom: 10,
+		marginBottom: 8, // Reduced margin
 	},
 	infoText: {
 		color: COLORS.textLight,
 		fontSize: 16,
 		textAlign: "center",
-		marginVertical: 10,
+		marginVertical: 8, // Reduced margin
 	},
 	retryText: {
 		color: COLORS.primary,
 		fontSize: 16,
 		textAlign: "center",
-		marginTop: 10,
+		marginTop: 8, // Reduced margin
 		textDecorationLine: "underline",
+	},
+	removeButtonSummary: {
+		flexDirection: "row",
+		alignItems: "center",
+		backgroundColor: COLORS.error,
+		paddingVertical: 6,
+		paddingHorizontal: 10,
+		borderRadius: SIZES.radius,
+		marginTop: 4,
+		marginRight: 10,
+	},
+	editButton: {
+		flexDirection: "row",
+		alignItems: "center",
+		backgroundColor: COLORS.primary,
+		paddingVertical: 6,
+		paddingHorizontal: 10,
+		borderRadius: SIZES.radius,
+		marginTop: 4,
+		marginRight: 10,
+	},
+	editButtonText: {
+		color: COLORS.white,
+		fontSize: 14,
+		marginLeft: 4,
+	},
+	removeButtonTextSummary: {
+		color: COLORS.white,
+		fontSize: 14,
+		marginLeft: 4,
 	},
 
 	/* Summary Box */
 	summaryRow: {
 		flexDirection: "row",
 		alignItems: "center",
-		marginVertical: 8,
+		marginVertical: 6, // Reduced margin
 	},
 	iconContainer: {
-		width: 30,
-		height: 30,
+		width: 25, // Reduced width
+		height: 25, // Reduced height
 		justifyContent: "center",
 		alignItems: "center",
-		marginRight: 10,
+		marginRight: 8, // Reduced margin
 	},
 	summaryLabel: {
 		fontSize: 14,
@@ -1978,12 +2462,12 @@ const styles = StyleSheet.create({
 	actionTypeContainer: {
 		flexDirection: "row",
 		alignItems: "center",
-		marginBottom: 10,
+		marginBottom: 6, // Reduced margin
 	},
 	actionTypeLabel: {
 		fontSize: 16,
 		color: COLORS.textDark,
-		marginLeft: 10,
+		marginLeft: 8, // Reduced margin
 		fontWeight: "600",
 	},
 
@@ -1991,6 +2475,8 @@ const styles = StyleSheet.create({
 	modalOverlay: {
 		flex: 1,
 		backgroundColor: "rgba(0,0,0,0.5)",
+		justifyContent: "center",
+		alignItems: "center",
 	},
 	modalContent: {
 		position: "absolute",
@@ -2010,6 +2496,12 @@ const styles = StyleSheet.create({
 		marginBottom: SIZES.base,
 		textAlign: "center",
 	},
+	modalSubtitle: {
+		fontSize: 16,
+		color: COLORS.textDark,
+		marginBottom: SIZES.base,
+		textAlign: "center",
+	},
 	modalCloseButton: {
 		marginTop: SIZES.base,
 		backgroundColor: COLORS.primary,
@@ -2021,15 +2513,140 @@ const styles = StyleSheet.create({
 		color: COLORS.white,
 		fontSize: 16,
 		fontWeight: "bold",
+		paddingLeft: 10,
+		paddingRight: 10,
 	},
 
-	/* ActionCard Reuse */
-	// Already using triggerCard styles for ActionCard
+	operatorModalContent: {
+		width: "80%",
+		backgroundColor: COLORS.white,
+		borderRadius: SIZES.radius,
+		padding: SIZES.base,
+		alignItems: "center",
+	},
+	operatorButton: {
+		width: "100%",
+		padding: 12,
+		backgroundColor: COLORS.primary,
+		borderRadius: SIZES.radius,
+		marginVertical: 6,
+		alignItems: "center",
+	},
+	operatorButtonText: {
+		color: COLORS.white,
+		fontSize: 16,
+		fontWeight: "bold",
+	},
+
+	/* Additional Step Content */
+	additionalStepContent: {
+		paddingTop: SIZES.base,
+	},
+
+	inlineSummary: {
+		flexDirection: "row",
+		flexWrap: "wrap",
+		alignItems: "center",
+	},
+	inlineSummaryItem: {
+		flexDirection: "row",
+		alignItems: "center",
+		marginRight: 12,
+		marginBottom: 6,
+	},
+	inlineSummaryText: {
+		fontSize: 14,
+		color: COLORS.textDark,
+	},
+
+	/* Trigger Actions Container */
+	triggerActionsContainer: {
+		flexDirection: "row",
+		marginTop: 8,
+	},
+
+	/* Weekly Scheduler Styles */
+	daysContainer: {
+		flexDirection: "row",
+		flexWrap: "wrap",
+		justifyContent: "space-between",
+	},
+	dayButton: {
+		flex: 1,
+		minWidth: 60,
+		paddingVertical: 8,
+		paddingHorizontal: 12,
+		borderWidth: 1,
+		borderColor: COLORS.border,
+		borderRadius: SIZES.radius,
+		marginRight: 8,
+		marginBottom: 8,
+		backgroundColor: COLORS.white,
+		alignItems: "center",
+	},
+	dayButtonSelected: {
+		backgroundColor: COLORS.primary,
+		borderColor: COLORS.primary,
+	},
+	dayButtonText: {
+		fontSize: 14,
+		color: COLORS.textDark,
+	},
+	dayButtonTextSelected: {
+		color: COLORS.white,
+		fontWeight: "bold",
+	},
+	timePickerContainer: {
+		marginBottom: 10,
+	},
+	timePickerButton: {
+		flexDirection: "row",
+		alignItems: "center",
+		backgroundColor: "#F9F9F9",
+		padding: 10, // Reduced padding
+		borderRadius: SIZES.radius,
+		marginBottom: 10, // Reduced margin
+		borderWidth: 1,
+		borderColor: COLORS.border,
+	},
+	timePickerText: {
+		marginLeft: 8, // Reduced margin
+		fontSize: 16,
+		color: COLORS.textDark,
+	},
+	webTimePickerContainer: {
+		flexDirection: "row",
+		alignItems: "center",
+		backgroundColor: "#F9F9F9",
+		borderRadius: SIZES.radius,
+		borderWidth: 1,
+		borderColor: COLORS.border,
+		padding: 10,
+	},
+	webTimeInput: {
+		// Remove the default border for a cleaner look
+		borderWidth: 0,
+		// Add a bottom border to mimic the DateTimePicker style
+		borderBottomWidth: 1,
+		borderColor: COLORS.border,
+		// Adjust padding and margin as needed
+		paddingVertical: 8,
+		paddingHorizontal: 10,
+		fontSize: 16,
+		color: COLORS.textDark,
+	},
 });
 
 /* ----------------------------------------------------------------
  * ConditionBadge Component
  * ---------------------------------------------------------------- */
+/**
+ * ConditionBadge Component
+ * @param {Object} props
+ * @param {Array<{label: string, value: string, icon: string}>} props.options - Condition options
+ * @param {string} props.selectedValue - Currently selected condition
+ * @param {Function} props.onSelect - Function to call when a condition is selected
+ */
 const ConditionBadge = ({ options, selectedValue, onSelect }) => {
 	return (
 		<View style={styles.badgeContainer}>
@@ -2045,7 +2662,7 @@ const ConditionBadge = ({ options, selectedValue, onSelect }) => {
 							name={option.icon}
 							size={16}
 							color={isActive ? COLORS.primary : COLORS.textDark}
-							style={{ marginRight: 6 }}
+							style={{ marginRight: 4 }} // Reduced margin
 						/>
 						<Text
 							style={[styles.badgeText, isActive && styles.badgeTextActive]}
@@ -2062,6 +2679,13 @@ const ConditionBadge = ({ options, selectedValue, onSelect }) => {
 /* ----------------------------------------------------------------
  * ActionCard Component
  * ---------------------------------------------------------------- */
+/**
+ * ActionCard Component
+ * @param {Object} props
+ * @param {{label: string, value: string, icon: string, description: string}} props.action - Action details
+ * @param {boolean} props.isSelected - Whether the action is selected
+ * @param {Function} props.onSelect - Function to call when the action is selected
+ */
 const ActionCard = ({ action, isSelected, onSelect }) => {
 	return (
 		<TouchableOpacity
@@ -2071,7 +2695,8 @@ const ActionCard = ({ action, isSelected, onSelect }) => {
 			]}
 			onPress={() => onSelect(action.value)}
 		>
-			<MaterialIcons name={action.icon} size={32} color="#71A12F" />
+			<MaterialIcons name={action.icon} size={28} color="#71A12F" />{" "}
+			{/* Slightly reduced size */}
 			<View style={styles.triggerTextContainer}>
 				<Text style={styles.triggerTitle}>{action.label}</Text>
 				<Text style={styles.triggerDescription}>{action.description}</Text>

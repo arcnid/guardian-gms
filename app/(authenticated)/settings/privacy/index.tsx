@@ -33,10 +33,16 @@ const Privacy = () => {
 
 	return (
 		<SafeAreaView style={styles.safeArea}>
-			<ScrollView style={styles.container}>
-				{/* Reusable Back Button */}
+			{/* Back Button outside ScrollView */}
+			<View style={styles.header}>
 				<BackButton label="Settings" />
+			</View>
 
+			{/* Scrollable Content */}
+			<ScrollView
+				contentContainerStyle={styles.container}
+				keyboardShouldPersistTaps="handled"
+			>
 				<Text style={styles.heading}>Privacy Settings</Text>
 
 				<View style={styles.card}>
@@ -89,9 +95,14 @@ const styles = StyleSheet.create({
 		flex: 1,
 		backgroundColor: "#F5F5F5", // Matches container background
 	},
+	header: {
+		paddingHorizontal: 16,
+		paddingTop: 8,
+		backgroundColor: "#F5F5F5",
+	},
 	container: {
-		flex: 1,
 		padding: 16,
+		paddingBottom: 32, // Ensures bottom spacing for scroll
 	},
 	heading: {
 		fontSize: 24,

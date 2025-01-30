@@ -1,3 +1,5 @@
+// LocationsList.js
+
 import React, { useState, useRef, useEffect, memo } from "react";
 import {
 	View,
@@ -92,7 +94,7 @@ export function LocationsList({
 	// HEIGHT TRANSITION
 	// -----------------
 	// We add a height animation only if `selectable === true`.
-	// Container starts at 400 (expanded). If a device is selected -> 120 (collapsed).
+	// Container starts at 400 (expanded). If a device is selected => 120 (collapsed).
 	const EXPANDED_HEIGHT = 400;
 	const COLLAPSED_HEIGHT = 120;
 	const containerHeight = useSharedValue(0);
@@ -278,6 +280,10 @@ export function LocationsList({
 				maxToRenderPerBatch={10}
 				windowSize={21}
 				removeClippedSubviews
+				// Remove the following line to re-enable scrolling
+				// scrollEnabled={false}
+				// Instead, enable scrolling and allow it to scroll within its container
+				scrollEnabled={true}
 			/>
 		</Animated.View>
 	);
@@ -879,5 +885,3 @@ const styles = StyleSheet.create({
 		marginLeft: 4,
 	},
 });
-
-export default LocationsList;

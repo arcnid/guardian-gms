@@ -25,7 +25,7 @@ export default {
 			backgroundColor: "#ffffff",
 		},
 		ios: {
-			bundleIdentifier: "com.siouxsteel.guardian", // Unique identifier for iOS
+			bundleIdentifier: "com.siouxsteel.guardiangms", // Unique identifier for iOS
 			supportsTablet: true,
 		},
 		android: {
@@ -41,7 +41,12 @@ export default {
 			output: "single",
 			favicon: "./assets/images/favicon.png",
 		},
-		plugins: ["expo-router", "expo-font", "expo-notifications"],
+		plugins: [
+			"expo-router",
+			"expo-font",
+			"expo-notifications",
+			"expo-localization",
+		],
 		experiments: {
 			typedRoutes: true,
 		},

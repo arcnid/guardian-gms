@@ -137,6 +137,14 @@ const AuthenticatedLayout = () => {
 						/>
 					),
 				}}
+				listeners={({ navigation }) => ({
+					tabPress: (e) => {
+						// Prevent default behavior
+						e.preventDefault();
+						// Navigate to the /devices route, resetting the stack
+						router.replace("/settings");
+					},
+				})}
 			/>
 
 			{/* Add Device Tab */}

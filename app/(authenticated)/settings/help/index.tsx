@@ -1,4 +1,3 @@
-// app/(authenticated)/help.js
 import React from "react";
 import {
 	View,
@@ -48,10 +47,16 @@ const Help = () => {
 
 	return (
 		<SafeAreaView style={styles.safeArea}>
-			<ScrollView contentContainerStyle={styles.container}>
-				{/* Reusable Back Button */}
+			{/* Back Button outside ScrollView */}
+			<View style={styles.header}>
 				<BackButton label="Settings" />
+			</View>
 
+			{/* Scrollable Content */}
+			<ScrollView
+				contentContainerStyle={styles.container}
+				keyboardShouldPersistTaps="handled"
+			>
 				<Text style={styles.heading}>Help & Support</Text>
 
 				{/* Contact Support */}
@@ -142,9 +147,14 @@ const styles = StyleSheet.create({
 		flex: 1,
 		backgroundColor: "#F5F5F5", // Matches container background
 	},
+	header: {
+		paddingHorizontal: 16,
+		paddingTop: 8,
+		backgroundColor: "#F5F5F5",
+	},
 	container: {
-		flex: 1,
 		padding: 16,
+		paddingBottom: 32, // Ensure space at the bottom
 	},
 	heading: {
 		fontSize: 24,
