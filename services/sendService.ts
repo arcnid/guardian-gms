@@ -1,4 +1,4 @@
-const hostURL = process.env.hostURL;
+const hostURL = "http://34.238.60.126:5000"; // Ensure it has http:// or https://
 
 export const sendService = {
 	sendPowerCommand: async ({
@@ -13,21 +13,27 @@ export const sendService = {
 		console.log("sending power state");
 		console.log(hostURL);
 		console.log(state);
+
 		const objectBody = {
-			userId: "123",
-			deviceId: "1223",
+			userId,
+			deviceId,
 			data: {
-				command: "clearEEPROM",
+				power: state,
 			},
 		};
-		const res = await fetch(`${hostURL}:5000/sendComand`, {
-			method: "post",
+
+		console.log("object body", objectBody);
+
+		const res = await fetch(`${hostURL}/sendComand`, {
+			// Now it's absolute
+			method: "POST",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify(objectBody),
 		});
 
-		const data = await res.json();
+		console.log(res);
 
+		const data = await res.json();
 		return data;
 	},
 };

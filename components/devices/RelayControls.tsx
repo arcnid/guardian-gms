@@ -11,7 +11,7 @@ import { sendService } from "@/services/sendService";
 import { AuthContext } from "@/contexts/AuthContext";
 
 export const RelayControls = ({ deviceId }: { deviceId: string }) => {
-	const [isRelayOn, setIsRelayOn] = useState(true); // State to track relay power
+	const [isRelayOn, setIsRelayOn] = useState(false); // State to track relay power
 	const { userId } = useContext(AuthContext);
 
 	if (!userId || !deviceId) {

@@ -271,10 +271,10 @@ const DeviceScreen = () => {
 								style={styles.deviceImage}
 								resizeMode="cover"
 								onError={(error) => {
-									console.error(
-										"Error loading image:",
-										error.nativeEvent.error
-									);
+									// console.error(
+									// 	"Error loading image:",
+									// 	error.nativeEvent.error
+									// );
 									// Optionally, set a fallback image or remove the URI
 									setDeviceImageUri(null);
 								}}
