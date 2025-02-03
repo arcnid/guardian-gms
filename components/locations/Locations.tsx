@@ -29,6 +29,9 @@ if (
 	UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
+// Define a constant to detect Android for conditional animations
+const isAndroid = Platform.OS === "android";
+
 /** THEME & HELPERS */
 const Colors = {
 	primary: "#71A12F",
@@ -101,8 +104,10 @@ export function LocationsList({
 
 	useEffect(() => {
 		if (selectable) {
-			// Initially expanded
-			containerHeight.value = withTiming(EXPANDED_HEIGHT, { duration: 0 });
+			// Initially expanded: on Android, set value directly; otherwise animate instantly.
+			containerHeight.value = isAndroid
+				? EXPANDED_HEIGHT
+				: withTiming(EXPANDED_HEIGHT, { duration: 0 });
 		}
 	}, [selectable]);
 
@@ -111,13 +116,17 @@ export function LocationsList({
 		if (!selectable) return; // no height transition if not selectable
 
 		if (selectedDevice) {
-			containerHeight.value = withTiming(COLLAPSED_HEIGHT, { duration: 300 });
+			containerHeight.value = isAndroid
+				? COLLAPSED_HEIGHT
+				: withTiming(COLLAPSED_HEIGHT, { duration: 300 });
 		} else {
-			containerHeight.value = withTiming(EXPANDED_HEIGHT, { duration: 300 });
+			containerHeight.value = isAndroid
+				? EXPANDED_HEIGHT
+				: withTiming(EXPANDED_HEIGHT, { duration: 300 });
 		}
 	}, [selectedDevice, selectable]);
 
-	// Reanimated style for container
+	// Create an animated style for the container (only used on non-Android/selectable)
 	const containerAnimatedStyle = useAnimatedStyle(() => {
 		if (!selectable) return {};
 		return {
@@ -152,14 +161,16 @@ export function LocationsList({
 
 			setSelectedDeviceInfo(deviceDetails);
 
-			// Animate banner in
-			bannerOpacity.value = withTiming(1, { duration: 300 });
-			bannerTranslateY.value = withTiming(0, { duration: 300 });
+			// Animate banner in: on Android, set directly; otherwise, animate.
+			bannerOpacity.value = isAndroid ? 1 : withTiming(1, { duration: 300 });
+			bannerTranslateY.value = isAndroid ? 0 : withTiming(0, { duration: 300 });
 		} else {
-			// Animate banner out
+			// Animate banner out: on Android, set directly; otherwise, animate.
 			setSelectedDeviceInfo(null);
-			bannerOpacity.value = withTiming(0, { duration: 300 });
-			bannerTranslateY.value = withTiming(-20, { duration: 300 });
+			bannerOpacity.value = isAndroid ? 0 : withTiming(0, { duration: 300 });
+			bannerTranslateY.value = isAndroid
+				? -20
+				: withTiming(-20, { duration: 300 });
 		}
 	}, [selectedDevice, data, bannerOpacity, bannerTranslateY]);
 
@@ -259,15 +270,26 @@ export function LocationsList({
 		);
 	};
 
+	// Determine which container to use:
+	// On Android in selectable mode, use a plain View with fixed height.
+	// Otherwise, use Animated.View with the animated style.
+	const ContainerComponent = isAndroid && selectable ? View : Animated.View;
+	const containerStyle =
+		isAndroid && selectable
+			? [
+					styles.container,
+					selectable && styles.selectableContainer,
+					{ height: selectedDevice ? COLLAPSED_HEIGHT : EXPANDED_HEIGHT },
+				]
+			: [
+					styles.container,
+					selectable && styles.selectableContainer,
+					containerAnimatedStyle,
+				];
+
 	// Show banner (if any) + list
 	return (
-		<Animated.View
-			style={[
-				styles.container,
-				selectable && styles.selectableContainer,
-				containerAnimatedStyle,
-			]}
-		>
+		<ContainerComponent style={containerStyle}>
 			{renderSelectedDeviceBanner()}
 			<FlatList
 				data={data}
@@ -280,18 +302,16 @@ export function LocationsList({
 				maxToRenderPerBatch={10}
 				windowSize={21}
 				removeClippedSubviews
-				// Remove the following line to re-enable scrolling
-				// scrollEnabled={false}
-				// Instead, enable scrolling and allow it to scroll within its container
 				scrollEnabled={true}
 			/>
-		</Animated.View>
+		</ContainerComponent>
 	);
 }
 
 /** -----------------------------------------------------------------------
- * SiteCard
- * ----------------------------------------------------------------------- */
+ * SiteCard Component
+ * -----------------------------------------------------------------------
+ */
 const SiteCard = memo(function SiteCard({
 	site,
 	expanded,
@@ -308,7 +328,11 @@ const SiteCard = memo(function SiteCard({
 	const scaleAnim = useSharedValue(1);
 
 	useEffect(() => {
-		rotateAnim.value = withTiming(expanded ? 1 : 0, { duration: 200 });
+		rotateAnim.value = isAndroid
+			? expanded
+				? 1
+				: 0
+			: withTiming(expanded ? 1 : 0, { duration: 200 });
 	}, [expanded]);
 
 	const rotateStyle = useAnimatedStyle(() => {
@@ -333,10 +357,10 @@ const SiteCard = memo(function SiteCard({
 	});
 
 	function onPressIn() {
-		scaleAnim.value = withTiming(0.97, { duration: 100 });
+		scaleAnim.value = isAndroid ? 0.97 : withTiming(0.97, { duration: 100 });
 	}
 	function onPressOut() {
-		scaleAnim.value = withTiming(1, { duration: 100 });
+		scaleAnim.value = isAndroid ? 1 : withTiming(1, { duration: 100 });
 	}
 
 	return (
@@ -416,8 +440,9 @@ const SiteCard = memo(function SiteCard({
 });
 
 /** -----------------------------------------------------------------------
- * BinCard
- * ----------------------------------------------------------------------- */
+ * BinCard Component
+ * -----------------------------------------------------------------------
+ */
 export const BinCard = memo(function BinCard({
 	bin,
 	siteId,
@@ -432,8 +457,16 @@ export const BinCard = memo(function BinCard({
 	const scaleAnim = useSharedValue(1);
 
 	useEffect(() => {
-		rotateAnim.value = withTiming(expanded ? 1 : 0, { duration: 200 });
-		fadeAnim.value = withTiming(expanded ? 1 : 0, { duration: 300 });
+		rotateAnim.value = isAndroid
+			? expanded
+				? 1
+				: 0
+			: withTiming(expanded ? 1 : 0, { duration: 200 });
+		fadeAnim.value = isAndroid
+			? expanded
+				? 1
+				: 0
+			: withTiming(expanded ? 1 : 0, { duration: 300 });
 	}, [expanded]);
 
 	const rotateStyle = useAnimatedStyle(() => {
@@ -464,10 +497,10 @@ export const BinCard = memo(function BinCard({
 	});
 
 	function onPressIn() {
-		scaleAnim.value = withTiming(0.97, { duration: 100 });
+		scaleAnim.value = isAndroid ? 0.97 : withTiming(0.97, { duration: 100 });
 	}
 	function onPressOut() {
-		scaleAnim.value = withTiming(1, { duration: 100 });
+		scaleAnim.value = isAndroid ? 1 : withTiming(1, { duration: 100 });
 	}
 
 	const hasDevices = bin.devices && bin.devices.length > 0;
@@ -598,8 +631,9 @@ export const BinCard = memo(function BinCard({
 });
 
 /** -----------------------------------------------------------------------
- * DeviceItem
- * ----------------------------------------------------------------------- */
+ * DeviceItem Component
+ * -----------------------------------------------------------------------
+ */
 const DeviceItem = memo(function DeviceItem({
 	device,
 	siteId,
@@ -717,7 +751,6 @@ const DeviceItem = memo(function DeviceItem({
 				]}
 			>
 				<View style={styles.deviceIconContainer}>{renderDeviceIcon()}</View>
-
 				<View style={styles.deviceInfo}>
 					<Text style={styles.deviceName}>{device.name}</Text>
 					<View style={styles.statusAndMetrics}>
@@ -725,7 +758,6 @@ const DeviceItem = memo(function DeviceItem({
 						{renderMetrics()}
 					</View>
 				</View>
-
 				{selectable ? (
 					isSelected ? (
 						<MaterialIcons
@@ -754,7 +786,8 @@ const DeviceItem = memo(function DeviceItem({
 
 /** -----------------------------------------------------------------------
  * Styles
- * ----------------------------------------------------------------------- */
+ * -----------------------------------------------------------------------
+ */
 const styles = StyleSheet.create({
 	container: {
 		width: "100%",

@@ -3,7 +3,7 @@ import "dotenv/config"; // Automatically loads variables from .env
 
 export default {
 	expo: {
-		name: "guardian-gms",
+		name: "Guardian GMS",
 		slug: "guardian-gms",
 		version: "1.0.0",
 		extra: {
@@ -15,7 +15,11 @@ export default {
 			},
 			GOOGLE_MAPS_API_KEY: "AIzaSyB64Xzy1HRz_zhdms_2-CMJgmpda3qjKp8",
 		},
-
+		notification: {
+			vapidPublicKey:
+				"BJlTySaciCMuiDMxwFCxQ3e6TKT3tAe1wi2BLWMtAm82HU5iOfw_2kwYRPUZ4eGArmVLjeAGILGaZsBPkvU3dTo",
+			serviceWorkerPath: "./expo-service-worker.js",
+		},
 		orientation: "portrait",
 		icon: "./assets/images/icon.png",
 		scheme: "myapp",

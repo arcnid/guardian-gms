@@ -1,4 +1,4 @@
-package com.yourcompany.guardian
+package com.siouxsteel.guardianandroid
 
 import android.app.Application
 import android.content.res.Configuration

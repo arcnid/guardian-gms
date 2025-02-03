@@ -86,9 +86,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.yourcompany.guardian'
+    namespace 'com.siouxsteel.guardianandroid'
     defaultConfig {
-        applicationId 'com.yourcompany.guardian'
+        applicationId 'com.siouxsteel.guardianandroid'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

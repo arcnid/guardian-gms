@@ -9,35 +9,67 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
-import BackButton from "../../../../components/BackButton"; // Import BackButton
+import BackButton from "../../../../components/BackButton";
 import * as Notifications from "expo-notifications";
+
+// Assume we have a notificationService to talk to our backend.
+import notificationService from "@/services/notifications/service";
 
 const NotificationsSettings = () => {
 	const [isNotificationsEnabled, setIsNotificationsEnabled] = useState(false);
 
-	// Check and request notification permissions
+	// Replace this with the actual user id from your auth system.
+	const userId = "123";
+
+	// Request permission, get the Expo push token, and register it.
 	const handleEnableNotifications = async () => {
 		try {
+			// Check current permissions.
 			const { status } = await Notifications.getPermissionsAsync();
+			let finalStatus = status;
 
-			if (status === "granted") {
-				Alert.alert("Notifications are already enabled.");
-				setIsNotificationsEnabled(true);
-				return;
+			// Request permission if not already granted.
+			if (status !== "granted") {
+				const { status: newStatus } =
+					await Notifications.requestPermissionsAsync();
+				finalStatus = newStatus;
 			}
 
-			const { status: newStatus } =
-				await Notifications.requestPermissionsAsync();
-
-			if (newStatus === "granted") {
-				Alert.alert("Notifications enabled successfully!");
-				setIsNotificationsEnabled(true);
-			} else {
+			if (finalStatus !== "granted") {
 				Alert.alert(
 					"Permission Denied",
 					"You can enable notifications in your device settings."
 				);
+				return;
 			}
+
+			// Get the Expo push token for this device.
+			const tokenResponse = await Notifications.getExpoPushTokenAsync();
+			const expoPushToken = tokenResponse.data;
+			console.log("Expo push token:", expoPushToken);
+
+			// Register the device with the backend by storing the push token.
+			// The service uses an upsert so if the token is already registered it will update it.
+			const response = await notificationService.addDeviceToNotification({
+				userId,
+				expoPushToken,
+			});
+
+			// Based on the response, alert the user if the device was already set up or newly registered.
+			if (response && response.alreadyRegistered) {
+				Alert.alert(
+					"Notifications Already Set Up",
+					"Your device is already registered for notifications."
+				);
+			} else {
+				Alert.alert(
+					"Notifications Enabled",
+					"Notifications have been enabled successfully!"
+				);
+			}
+
+			// Update local state so the button is disabled.
+			setIsNotificationsEnabled(true);
 		} catch (error) {
 			console.error("Error enabling notifications:", error);
 			Alert.alert("Error", "An error occurred while enabling notifications.");
@@ -108,7 +140,7 @@ export default NotificationsSettings;
 const styles = StyleSheet.create({
 	safeArea: {
 		flex: 1,
-		backgroundColor: "#F5F5F5", // Matches container background
+		backgroundColor: "#F5F5F5",
 	},
 	header: {
 		paddingHorizontal: 16,
@@ -117,12 +149,12 @@ const styles = StyleSheet.create({
 	},
 	container: {
 		padding: 16,
-		paddingBottom: 32, // Ensures bottom spacing for scroll
+		paddingBottom: 32,
 	},
 	heading: {
 		fontSize: 24,
 		fontWeight: "bold",
-		color: "#333", // Black heading text
+		color: "#333",
 		marginBottom: 16,
 		textAlign: "center",
 	},
@@ -140,12 +172,12 @@ const styles = StyleSheet.create({
 	cardTitle: {
 		fontSize: 18,
 		fontWeight: "bold",
-		color: "#333", // Black title text
+		color: "#333",
 		marginBottom: 8,
 	},
 	cardContent: {
 		fontSize: 16,
-		color: "#333", // Black card content
+		color: "#333",
 		marginBottom: 4,
 	},
 	enableButton: {
