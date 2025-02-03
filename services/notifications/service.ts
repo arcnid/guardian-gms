@@ -41,7 +41,7 @@ export const NotificationService = {
 					user_id: userId,
 					expo_push_token: expoPushToken,
 				},
-				{ onConflict: "user_id" } // update the record if user_id already exists
+				{ onConflict: "expo_push_token" } // update the record if user_id already exists
 			)
 			.select();
 

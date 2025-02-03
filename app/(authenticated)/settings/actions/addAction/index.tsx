@@ -307,11 +307,14 @@ const AddAction = () => {
 
 	const filteredLocationsForDevice2 = useMemo(() => {
 		if (!deviceType1 || !locations) return locations;
-		// Only include devices matching deviceType1 and exclude Device 1
+		// Only include devices matching deviceType1 and exclude Device 1.
+		// Note: We use safe fallbacks for bins and devices and use the property names
+		// consistent with the rest of your code (e.g. device_type and value).
 		return locations.map((loc) => {
-			const filteredBins = loc.bins.map((bin) => {
-				const filteredDevices = bin.devices.filter(
-					(d) => d.type === deviceType1 && d.id !== selectedDevice1Comp
+			const filteredBins = (loc.bins || []).map((bin) => {
+				const filteredDevices = (bin.devices || []).filter(
+					(d) =>
+						d.device_type === deviceType1 && d.value !== selectedDevice1Comp
 				);
 				return { ...bin, devices: filteredDevices };
 			});

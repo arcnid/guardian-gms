@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import {
+	Platform,
 	View,
 	Text,
 	StyleSheet,
@@ -11,15 +12,28 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import BackButton from "../../../../components/BackButton";
 import * as Notifications from "expo-notifications";
+import { AuthContext } from "@/contexts/AuthContext";
 
 // Assume we have a notificationService to talk to our backend.
 import notificationService from "@/services/notifications/service";
 
 const NotificationsSettings = () => {
 	const [isNotificationsEnabled, setIsNotificationsEnabled] = useState(false);
+	const { userId } = useContext(AuthContext);
 
-	// Replace this with the actual user id from your auth system.
-	const userId = "123";
+	// Set up a default notification channel for Android
+	useEffect(() => {
+		if (Platform.OS === "android") {
+			Notifications.setNotificationChannelAsync("default", {
+				name: "Default",
+				importance: Notifications.AndroidImportance.DEFAULT,
+				vibrationPattern: [0, 250, 250, 250],
+				lightColor: "#FF231F7C",
+			}).catch((error) => {
+				console.error("Error setting notification channel", error);
+			});
+		}
+	}, []);
 
 	// Request permission, get the Expo push token, and register it.
 	const handleEnableNotifications = async () => {
@@ -45,8 +59,16 @@ const NotificationsSettings = () => {
 
 			// Get the Expo push token for this device.
 			const tokenResponse = await Notifications.getExpoPushTokenAsync();
-			const expoPushToken = tokenResponse.data;
-			console.log("Expo push token:", expoPushToken);
+			let expoPushToken = tokenResponse.data;
+			console.log("Original Expo push token:", expoPushToken);
+
+			// Clean the token if it includes the "ExponentPushToken[...]" wrapper.
+			if (expoPushToken.startsWith("ExponentPushToken[")) {
+				expoPushToken = expoPushToken
+					.replace(/^ExponentPushToken\[/, "")
+					.replace(/\]$/, "");
+			}
+			console.log("Cleaned Expo push token:", expoPushToken);
 
 			// Register the device with the backend by storing the push token.
 			// The service uses an upsert so if the token is already registered it will update it.
