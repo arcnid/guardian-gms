@@ -1,18 +1,39 @@
-import React, { useState, useCallback, useContext } from "react";
-import {
-	Platform,
-	View,
-	Text,
-	StyleSheet,
-	TouchableOpacity,
-} from "react-native";
+import React, { useState, useCallback, useEffect, useContext } from "react";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import Icon from "react-native-vector-icons/MaterialIcons"; // Importing MaterialIcons
 import { sendService } from "@/services/sendService";
 import { AuthContext } from "@/contexts/AuthContext";
 
-export const RelayControls = ({ deviceId }: { deviceId: string }) => {
-	const [isRelayOn, setIsRelayOn] = useState(false); // State to track relay power
+interface RelayControlsProps {
+	deviceId: string;
+	currentRelayState: boolean; // current relay state from the latest log
+	online: boolean; // whether the device is considered online
+}
+
+export const RelayControls = ({
+	deviceId,
+	currentRelayState,
+	online,
+}: RelayControlsProps) => {
 	const { userId } = useContext(AuthContext);
+	const [isRelayOn, setIsRelayOn] = useState(currentRelayState);
+
+	console.log(
+		"incoming params to relay controls",
+		deviceId,
+		currentRelayState,
+		online
+	);
+
+	// Update local state based on both currentRelayState and online status.
+	useEffect(() => {
+		if (online) {
+			setIsRelayOn(currentRelayState);
+		} else {
+			// Force the relay off if the device is offline.
+			setIsRelayOn(false);
+		}
+	}, [currentRelayState, online]);
 
 	if (!userId || !deviceId) {
 		return null;
@@ -26,7 +47,6 @@ export const RelayControls = ({ deviceId }: { deviceId: string }) => {
 		(state: boolean) => {
 			console.log("Sending message:", state);
 			console.log("Topic:", topic);
-
 			sendService.sendPowerCommand({ deviceId, state, userId });
 		},
 		[userId, deviceId]
@@ -48,7 +68,6 @@ export const RelayControls = ({ deviceId }: { deviceId: string }) => {
 		<View style={styles.outerContainer}>
 			<View style={styles.container}>
 				<Text style={styles.title}>Relay Controls</Text>
-
 				<View style={styles.statusContainer}>
 					<Icon
 						name={isRelayOn ? "power" : "power-off"}
@@ -57,16 +76,21 @@ export const RelayControls = ({ deviceId }: { deviceId: string }) => {
 						style={styles.statusIcon}
 					/>
 					<Text style={styles.status}>Power: {isRelayOn ? "ON" : "OFF"}</Text>
+					{!online && (
+						<Text style={[styles.status, { marginLeft: 10, color: "#F44336" }]}>
+							Offline
+						</Text>
+					)}
 				</View>
-
 				<View style={styles.toggleContainer}>
 					<TouchableOpacity
 						style={[
 							styles.toggleButton,
 							isRelayOn && styles.toggleButtonActive,
+							!online && styles.disabledButton, // style disabled buttons when offline
 						]}
 						onPress={turnRelayOn}
-						disabled={isRelayOn}
+						disabled={isRelayOn || !online}
 					>
 						<Text
 							style={[
@@ -81,9 +105,10 @@ export const RelayControls = ({ deviceId }: { deviceId: string }) => {
 						style={[
 							styles.toggleButton,
 							!isRelayOn && styles.toggleButtonActive,
+							!online && styles.disabledButton,
 						]}
 						onPress={turnRelayOff}
-						disabled={!isRelayOn}
+						disabled={!isRelayOn || !online}
 					>
 						<Text
 							style={[
@@ -158,4 +183,9 @@ const styles = StyleSheet.create({
 	toggleButtonTextActive: {
 		color: "#FFF", // Text color when active
 	},
+	disabledButton: {
+		backgroundColor: "#ccc",
+	},
 });
+
+export default RelayControls;

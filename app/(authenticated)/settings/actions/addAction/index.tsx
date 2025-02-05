@@ -312,10 +312,9 @@ const AddAction = () => {
 		// consistent with the rest of your code (e.g. device_type and value).
 		return locations.map((loc) => {
 			const filteredBins = (loc.bins || []).map((bin) => {
-				const filteredDevices = (bin.devices || []).filter(
-					(d) =>
-						d.device_type === deviceType1 && d.value !== selectedDevice1Comp
-				);
+				const filteredDevices = (bin.devices || []).filter((d) => {
+					return d.type === deviceType1 && d.id !== selectedDevice1Comp;
+				});
 				return { ...bin, devices: filteredDevices };
 			});
 			return { ...loc, bins: filteredBins };

@@ -1,6 +1,4 @@
-// components/DeviceScreen.tsx
-
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
 	View,
 	Text,
@@ -10,7 +8,7 @@ import {
 	SafeAreaView,
 	ScrollView,
 	ActivityIndicator,
-	RefreshControl, // Added import
+	RefreshControl,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -53,13 +51,39 @@ const DeviceScreen = () => {
 	const [uploadingImage, setUploadingImage] = useState(false);
 
 	// Refresh state
-	const [refreshing, setRefreshing] = useState(false); // Existing state
-	const [refreshCounter, setRefreshCounter] = useState(0); // New state
+	const [refreshing, setRefreshing] = useState(false);
+	const [refreshCounter, setRefreshCounter] = useState(0);
+
+	const relayData = useMemo(() => {
+		if (logs.length > 0) {
+			console.log(logs);
+			// Assume the most recent log is at index 0.
+			const lastLog = logs[0];
+			const logTime = new Date(lastLog.created_at);
+			const now = new Date();
+			const diffInMs = now.getTime() - logTime.getTime();
+			// If the latest log is less than one minute old, consider the device "Online"
+			const online = diffInMs <= 60000;
+			// Assume the log contains a relay_state field (a boolean or string)
+			let relayState = false;
+
+			if (lastLog.relay_state === "on") {
+				relayState = true;
+			} else if (lastLog.relay_state === "off") {
+				relayState = false;
+			}
+
+			console.log({ online, relayState });
+
+			return { online, relayState };
+		}
+		// If no logs, fallback to defaults (or you could use deviceData.status if appropriate)
+		return { online: false, relayState: false };
+	}, [logs]);
 
 	// Function to handle image selection and upload
 	const handleImageUpload = async () => {
 		try {
-			// Request media library permissions if not already granted
 			const permissionResult =
 				await ImagePicker.requestMediaLibraryPermissionsAsync();
 			if (permissionResult.status !== "granted") {
@@ -75,30 +99,22 @@ const DeviceScreen = () => {
 			});
 
 			if (!result.canceled && result.assets?.length > 0) {
-				// Get the selected image URI
 				const imageUri = result.assets[0].uri;
-
-				// Fetch the image file as a Blob
 				const response = await fetch(imageUri);
 				const imageData = await response.blob();
 
 				setUploadingImage(true);
 
-				// Upload the image Blob to the backend
 				await UserDeviceService.updateDeviceImage(
 					deviceId as string,
 					imageData
 				);
 
-				// Fetch the updated image URL from the backend
 				const updatedImageUrl = await UserDeviceService.getDeviceImageUrl(
 					deviceId as string
 				);
 
-				// Update the deviceImageUri state with the new image URL
 				setDeviceImageUri(updatedImageUrl);
-
-				// Optionally, update deviceData.devicePicture if needed
 				setDeviceData((prev) =>
 					prev ? { ...prev, devicePicture: updatedImageUrl } : prev
 				);
@@ -121,7 +137,7 @@ const DeviceScreen = () => {
 			const res = await UserDeviceService.getDeviceWithLatestLog(
 				deviceId as string
 			);
-			// It seems `res` is fetched but not used. If needed, you can handle it here.
+			// Use res if needed...
 		} catch (e) {
 			console.error(e);
 		}
@@ -155,7 +171,6 @@ const DeviceScreen = () => {
 			setDeviceData(data);
 			console.log("Device data fetched:", data);
 
-			// Fetch and set the existing image URI if available
 			if (data) {
 				const url = await UserDeviceService.getDeviceImageUrl(
 					deviceId as string
@@ -193,7 +208,7 @@ const DeviceScreen = () => {
 	const onRefresh = useCallback(async () => {
 		setRefreshing(true);
 		await Promise.all([getDeviceInfo(), getRecentLogs(), getLatestTempHumid()]);
-		setRefreshCounter((prev) => prev + 1); // Increment refreshCounter
+		setRefreshCounter((prev) => prev + 1);
 		setRefreshing(false);
 	}, [getDeviceInfo, getRecentLogs, getLatestTempHumid]);
 
@@ -209,12 +224,19 @@ const DeviceScreen = () => {
 		getLatestTempHumid();
 	}, [getLatestTempHumid]);
 
-	// Debugging: Log deviceImageUri on render
-	useEffect(() => {
-		if (deviceImageUri == null) {
-			// don't even try to show image
+	// Compute the displayed status based on the latest log timestamp.
+	const displayStatus = useMemo(() => {
+		if (logs.length > 0) {
+			// Assume logs[0] is the most recent
+			const lastLogTime = new Date(logs[0].created_at);
+			const now = new Date();
+			const diffInMs = now.getTime() - lastLogTime.getTime();
+			// If the latest log is less than 1 minute old, display "Online"
+			return diffInMs <= 60000 ? "Online" : "Offline";
 		}
-	}, [deviceImageUri]);
+		// Fallback to deviceData.status if no log is available
+		return deviceData?.status || "Unknown";
+	}, [logs, deviceData]);
 
 	if (loading) {
 		return (
@@ -243,11 +265,6 @@ const DeviceScreen = () => {
 	const isRelay = deviceData.device_type.toLowerCase() === "relay";
 	const isSensor = deviceData.device_type.toLowerCase() === "sensor";
 
-	const getLastCommunication = (device: DeviceData) => {
-		console.log("this is my device data", deviceData);
-		return new Date(deviceData.added_at).toLocaleString() || "N/A";
-	};
-
 	return (
 		<SafeAreaView style={styles.container}>
 			<ScrollView
@@ -265,28 +282,17 @@ const DeviceScreen = () => {
 					<TouchableOpacity onPress={handleImageUpload} activeOpacity={0.7}>
 						{deviceImageUri ? (
 							<Image
-								source={{
-									uri: deviceImageUri,
-								}}
+								source={{ uri: deviceImageUri }}
 								style={styles.deviceImage}
 								resizeMode="cover"
-								onError={(error) => {
-									// console.error(
-									// 	"Error loading image:",
-									// 	error.nativeEvent.error
-									// );
-									// Optionally, set a fallback image or remove the URI
-									setDeviceImageUri(null);
-								}}
+								onError={() => setDeviceImageUri(null)}
 							/>
 						) : (
 							<View style={styles.addImageContainer}>
 								{uploadingImage ? (
 									<ActivityIndicator size="small" color="#71A12F" />
 								) : (
-									<>
-										<FontAwesome5 name="camera" size={24} color="#555" />
-									</>
+									<FontAwesome5 name="camera" size={24} color="#555" />
 								)}
 							</View>
 						)}
@@ -296,12 +302,10 @@ const DeviceScreen = () => {
 						<Text
 							style={[
 								styles.deviceStatus,
-								{
-									color: deviceData.status === "Online" ? "#4CAF50" : "#F44336",
-								},
+								{ color: displayStatus === "Online" ? "#4CAF50" : "#F44336" },
 							]}
 						>
-							{deviceData.status || "Unknown"}
+							{displayStatus}
 						</Text>
 						<Text style={styles.deviceType}>
 							Type:{" "}
@@ -311,11 +315,15 @@ const DeviceScreen = () => {
 					</View>
 				</View>
 
-				{isRelay && <RelayControls deviceId={deviceId}></RelayControls>}
-
+				{isRelay && (
+					<RelayControls
+						deviceId={deviceId}
+						currentRelayState={relayData.relayState}
+						online={relayData.online}
+					/>
+				)}
 				{isSensor && (
 					<>
-						{/* Pass refreshCounter as a prop to RecentSensorData */}
 						<RecentSensorData
 							deviceId={deviceId as string}
 							refreshCounter={refreshCounter}
@@ -323,6 +331,13 @@ const DeviceScreen = () => {
 						<SensorChart logs={logs} deviceId={deviceId as string} />
 					</>
 				)}
+
+				<View style={styles.deviceActions}>
+					<Text style={{ fontSize: 20, fontWeight: "bold", marginBottom: 10 }}>
+						Device Actions
+					</Text>
+					<View style={styles.lastCommunication}></View>
+				</View>
 			</ScrollView>
 		</SafeAreaView>
 	);
@@ -338,6 +353,15 @@ const styles = StyleSheet.create({
 		paddingBottom: 30,
 	},
 	header: {
+		flexDirection: "row",
+		alignItems: "center",
+		marginBottom: 20,
+		backgroundColor: "#FFF",
+		padding: 15,
+		borderRadius: 10,
+		elevation: 3,
+	},
+	deviceActions: {
 		flexDirection: "row",
 		alignItems: "center",
 		marginBottom: 20,

@@ -301,7 +301,7 @@ export const RecentSensorData: React.FC<RecentSensorDataProps> = ({
 			</View>
 
 			<View style={styles.sensorRow}>
-				<FontAwesome5 name="water" size={30} color="#2196F3" />
+				<MaterialIcons name="water-drop" size={30} color="#2196F3" />
 				<View style={styles.labelValueContainer}>
 					<Text style={styles.label}>Humidity</Text>
 					<Text style={styles.value}>

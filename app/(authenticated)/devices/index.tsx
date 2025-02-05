@@ -20,6 +20,7 @@ import { useFocusEffect } from "@react-navigation/native";
 interface Device {
 	device_id: string;
 	device_name: string | null;
+	// This status field will be updated based on the latest log timestamp.
 	status: "Online" | "Offline" | string | undefined;
 	device_type: "relay" | "sensor";
 	image: string;
@@ -36,13 +37,13 @@ const DevicesScreen = () => {
 
 	console.log("user", userId);
 
-	// Combined function to fetch devices and their images
+	// Combined function to fetch devices, images, and then update status based on logs
 	const fetchDevicesAndImages = useCallback(async () => {
 		try {
 			setError(null);
 			setLoading(true);
 
-			// Fetch devices associated with the user
+			// 1. Fetch devices associated with the user
 			const deviceData = await UserDeviceService.getDevicesByUser(userId);
 			console.log("Fetched Devices:", deviceData);
 
@@ -56,16 +57,10 @@ const DevicesScreen = () => {
 				return;
 			}
 
-			if (deviceData.length === 0) {
-				setDevices([]);
-				return;
-			}
-
-			// Extract device IDs to fetch images
+			// 2. Fetch images for the devices
 			const deviceIdList = deviceData.map((device) => device.device_id);
 			console.log("Device IDs for image fetching:", deviceIdList);
 
-			// Fetch images for the devices
 			const devicesWithImages =
 				await UserDeviceService.getDevicesWithImage(deviceIdList);
 			console.log("Devices with Images Retrieved:", devicesWithImages);
@@ -82,8 +77,41 @@ const DevicesScreen = () => {
 				image: imageMap.get(device.device_id) || device.image || "",
 			}));
 
-			console.log("Updated Devices with Images:", updatedDevices);
-			setDevices(updatedDevices);
+			// 3. For each device, fetch its most recent log to compute its status.
+			//    We assume there is a service method called getRecentLogs that returns an array of logs
+			//    where logs[0].created_at is the timestamp of the latest log.
+			const devicesWithStatus: Device[] = await Promise.all(
+				updatedDevices.map(async (device) => {
+					try {
+						const logs = await UserDeviceService.getRecentLogs(
+							device.device_id
+						);
+						// If we have at least one log, check the time difference
+						if (logs && logs.length > 0) {
+							const lastLogTime = new Date(logs[0].created_at);
+							const now = new Date();
+							const diffInMs = now.getTime() - lastLogTime.getTime();
+							// If the latest log is within 60 seconds, mark it as Online
+							return {
+								...device,
+								status: diffInMs <= 60000 ? "Online" : "Offline",
+							};
+						} else {
+							// No logs means the device is offline
+							return { ...device, status: "Offline" };
+						}
+					} catch (logError) {
+						console.error(
+							`Error fetching logs for device ${device.device_id}:`,
+							logError
+						);
+						return { ...device, status: "Offline" };
+					}
+				})
+			);
+
+			console.log("Updated Devices with Images and Status:", devicesWithStatus);
+			setDevices(devicesWithStatus);
 		} catch (err) {
 			console.error("Error fetching devices or images:", err);
 			setError("Failed to fetch devices. Please try again.");
