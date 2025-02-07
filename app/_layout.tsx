@@ -1,5 +1,5 @@
 // app/_layout.tsx
-import React from "react";
+import React, { useEffect } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { Slot } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -7,13 +7,18 @@ import { AuthProvider } from "../contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { useAssets } from "expo-asset";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import GenericTouchable from "react-native-gesture-handler/lib/typescript/components/touchables/GenericTouchable";
+import { setupNotificationChannel } from "@/services/notifications/notificationsSetup";
 
 const RootLayout = () => {
 	const [assets] = useAssets([
 		require("../assets/images/guardian-banner.png"),
 		// Add other images or assets here if needed
 	]);
+
+	useEffect(() => {
+		// console.log("starting notifications channel");
+		// setupNotificationChannel();
+	}, []); // run once when the app loads
 
 	if (!assets) {
 		return (

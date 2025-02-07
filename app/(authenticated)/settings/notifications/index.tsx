@@ -94,7 +94,10 @@ const NotificationsSettings = () => {
 			setIsNotificationsEnabled(true);
 		} catch (error) {
 			console.error("Error enabling notifications:", error);
-			Alert.alert("Error", "An error occurred while enabling notifications.");
+			Alert.alert(
+				"Error",
+				`An error occurred while enabling notifications, ${error}`
+			);
 		}
 	};
 

@@ -4,6 +4,8 @@ import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { Tabs, useRouter } from "expo-router";
 import { AuthContext } from "../../contexts/AuthContext"; // Adjust path as needed
 import { MaterialIcons } from "@expo/vector-icons";
+import { initializeFirebase } from "@/services/notifications/firebaseConfig"; // Import initializeFirebase
+import { setupNotificationChannel } from "@/services/notifications/notificationsSetup"; // Import setupNotificationChannel
 
 const AuthenticatedLayout = () => {
 	const authContext = useContext(AuthContext);
@@ -15,6 +17,12 @@ const AuthenticatedLayout = () => {
 	}
 
 	const { isLoggedIn } = authContext;
+
+	useEffect(() => {
+		// Initialize Firebase and set up notification channel
+		initializeFirebase();
+		setupNotificationChannel();
+	}, []);
 
 	useEffect(() => {
 		// Redirect to login if user is not authenticated
