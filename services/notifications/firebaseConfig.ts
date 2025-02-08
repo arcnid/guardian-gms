@@ -2,16 +2,18 @@ import { initializeApp, getApps } from "firebase/app";
 import googleSerivces from "@/google-services.json";
 
 const firebaseConfig = {
-	apiKey: "YOUR_API_KEY",
-	authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-	projectId: "YOUR_PROJECT_ID",
-	storageBucket: "YOUR_PROJECT_ID.appspot.com",
-	messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-	appId: "YOUR_APP_ID",
+	apiKey: "AIzaSyDwEOcPwdtJSti0QdeLtjXetgi2LWXl9XE",
+
+	projectId: "notifications-a9894",
+	storageBucket: "notifications-a9894.firebasestorage.app",
+
+	appId: "1:266036915845:android:9163a37823143189c003ec",
 };
 
 export const initializeFirebase = () => {
 	if (!getApps().length) {
+		console.log("Initializing Firebase");
+
 		initializeApp(firebaseConfig);
 	}
 };

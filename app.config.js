@@ -44,7 +44,7 @@ export default {
 					apiKey: "AIzaSyB64Xzy1HRz_zhdms_2-CMJgmpda3qjKp8",
 				},
 			},
-			googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
+			googleServicesFile: "./google-services.json",
 
 			googleMapsApiKey: "AIzaSyB64Xzy1HRz_zhdms_2-CMJgmpda3qjKp8",
 		},

@@ -20,7 +20,7 @@ const AuthenticatedLayout = () => {
 
 	useEffect(() => {
 		// Initialize Firebase and set up notification channel
-		initializeFirebase();
+		// initializeFirebase();
 		setupNotificationChannel();
 	}, []);
 

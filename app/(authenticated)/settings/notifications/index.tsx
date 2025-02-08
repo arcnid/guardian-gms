@@ -13,6 +13,9 @@ import { MaterialIcons } from "@expo/vector-icons";
 import BackButton from "../../../../components/BackButton";
 import * as Notifications from "expo-notifications";
 import { AuthContext } from "@/contexts/AuthContext";
+import Constants from "expo-constants";
+import * as Device from "expo-device";
+import { initializeFirebase } from "@/services/notifications/firebaseConfig";
 
 // Assume we have a notificationService to talk to our backend.
 import notificationService from "@/services/notifications/service";
@@ -20,6 +23,11 @@ import notificationService from "@/services/notifications/service";
 const NotificationsSettings = () => {
 	const [isNotificationsEnabled, setIsNotificationsEnabled] = useState(false);
 	const { userId } = useContext(AuthContext);
+	const projectId =
+		Constants?.expoConfig?.extra?.eas?.projectId ??
+		Constants?.easConfig?.projectId;
+
+	console.log("Project ID:", projectId);
 
 	// Set up a default notification channel for Android
 	useEffect(() => {
@@ -57,37 +65,85 @@ const NotificationsSettings = () => {
 				return;
 			}
 
-			// Get the Expo push token for this device.
-			const tokenResponse = await Notifications.getExpoPushTokenAsync();
-			let expoPushToken = tokenResponse.data;
-			console.log("Original Expo push token:", expoPushToken);
+			if (Platform.OS === "ios") {
+				// Get the Expo push token for this device.
+				const tokenResponse = await Notifications.getExpoPushTokenAsync({
+					projectId,
+				});
+				let expoPushToken = tokenResponse.data;
+				console.log("Original Expo push token:", expoPushToken);
 
-			// Clean the token if it includes the "ExponentPushToken[...]" wrapper.
-			if (expoPushToken.startsWith("ExponentPushToken[")) {
-				expoPushToken = expoPushToken
-					.replace(/^ExponentPushToken\[/, "")
-					.replace(/\]$/, "");
-			}
-			console.log("Cleaned Expo push token:", expoPushToken);
+				// Clean the token if it includes the "ExponentPushToken[...]" wrapper.
+				if (expoPushToken.startsWith("ExponentPushToken[")) {
+					expoPushToken = expoPushToken
+						.replace(/^ExponentPushToken\[/, "")
+						.replace(/\]$/, "");
+				}
+				console.log("Cleaned Expo push token:", expoPushToken);
 
-			// Register the device with the backend by storing the push token.
-			// The service uses an upsert so if the token is already registered it will update it.
-			const response = await notificationService.addDeviceToNotification({
-				userId,
-				expoPushToken,
-			});
+				// Register the device with the backend by storing the push token.
+				// The service uses an upsert so if the token is already registered it will update it.
+				const response = await notificationService.addDeviceToNotification({
+					userId,
+					expoPushToken,
+				});
 
-			// Based on the response, alert the user if the device was already set up or newly registered.
-			if (response && response.alreadyRegistered) {
-				Alert.alert(
-					"Notifications Already Set Up",
-					"Your device is already registered for notifications."
-				);
+				// Based on the response, alert the user if the device was already set up or newly registered.
+				if (response && response.alreadyRegistered) {
+					Alert.alert(
+						"Notifications Already Set Up",
+						"Your device is already registered for notifications."
+					);
+				} else {
+					Alert.alert(
+						"Notifications Enabled",
+						"Notifications have been enabled successfully!"
+					);
+				}
 			} else {
-				Alert.alert(
-					"Notifications Enabled",
-					"Notifications have been enabled successfully!"
-				);
+				//before we do anythign initialize firebase app
+
+				// Initialize Firebase and set up notification channel
+
+				initializeFirebase();
+
+				await Notifications.setNotificationChannelAsync("default", {
+					name: "Default",
+					importance: Notifications.AndroidImportance.MAX,
+					vibrationPattern: [0, 250, 250, 250],
+					lightColor: "#FF231F7C",
+				});
+
+				if (Device.isDevice) {
+					const { status: existingStatus } =
+						await Notifications.getPermissionsAsync();
+					let finalStatus = existingStatus;
+
+					if (existingStatus !== "granted") {
+						const { status } = await Notifications.requestPermissionsAsync();
+						finalStatus = status;
+					}
+
+					if (finalStatus !== "granted") {
+						Alert.alert(
+							"Permission Denied",
+							"You can enable notifications in your device settings."
+						);
+						return;
+					}
+
+					if (!projectId) {
+						Alert.alert(
+							"Error",
+							"Project ID not found. Please check your configuration."
+						);
+						return;
+					}
+					const pushNotificationToken =
+						await Notifications.getExpoPushTokenAsync({ projectId });
+
+					console.log("Push Notification Token:", pushNotificationToken);
+				}
 			}
 
 			// Update local state so the button is disabled.
