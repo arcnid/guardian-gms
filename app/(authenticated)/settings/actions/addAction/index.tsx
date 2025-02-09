@@ -272,7 +272,6 @@ const AddAction = () => {
 				const device = await UserDeviceService.getDevice(selectedDevice2Comp);
 				if (device) {
 					if (deviceType1 && device.device_type !== deviceType1) {
-						// If a different device type is selected, alert and reset
 						Alert.alert(
 							"Device Type Mismatch",
 							`Device 2 must be the same type as Device 1 (${deviceType1}). Please select a matching device.`
@@ -284,7 +283,6 @@ const AddAction = () => {
 						return;
 					}
 
-					// Since both devices share the same metric, no need to set metrics2Comp
 					// Ensure that selectedMetricComp is still valid
 					if (
 						!metricsComp.some((metric) => metric.value === selectedMetricComp)
@@ -307,9 +305,6 @@ const AddAction = () => {
 
 	const filteredLocationsForDevice2 = useMemo(() => {
 		if (!deviceType1 || !locations) return locations;
-		// Only include devices matching deviceType1 and exclude Device 1.
-		// Note: We use safe fallbacks for bins and devices and use the property names
-		// consistent with the rest of your code (e.g. device_type and value).
 		return locations.map((loc) => {
 			const filteredBins = (loc.bins || []).map((bin) => {
 				const filteredDevices = (bin.devices || []).filter((d) => {
@@ -324,7 +319,6 @@ const AddAction = () => {
 	/* ----------------------------------------------------------------
 	 * Helpers
 	 * ---------------------------------------------------------------- */
-	// Return condition options for single device metric
 	const getConditionOptions = (metric) => {
 		if (metric === "powerState") {
 			return [
@@ -339,7 +333,6 @@ const AddAction = () => {
 		];
 	};
 
-	// Return condition options for difference triggers
 	const getDifferenceConditionOptions = () => {
 		return [
 			{ label: "Difference Above", value: "gt", icon: "arrow-upward" },
@@ -348,7 +341,6 @@ const AddAction = () => {
 		];
 	};
 
-	// Build data structure for step 3 device grouping
 	const getGroupedDevicesData = (locData) => {
 		if (!Array.isArray(locData)) return [];
 		return locData.map((loc) => ({
@@ -363,7 +355,6 @@ const AddAction = () => {
 		}));
 	};
 
-	// Helper function to get device type based on device ID
 	const getDeviceType = (deviceId) => {
 		const device = locations
 			.flatMap((loc) => loc.bins)
@@ -376,15 +367,12 @@ const AddAction = () => {
 	 * Step Navigation
 	 * ---------------------------------------------------------------- */
 	const handleNextStep = () => {
-		// Step 1 validation
 		if (currentStep === 1 && !actionType) {
 			Alert.alert("Selection Required", "Please select a trigger type");
 			return;
 		}
 
-		// Step 2 validation
 		if (currentStep === 2) {
-			// 2a) SCHEDULED - Updated for Single Time Scheduling
 			if (actionType === "scheduled") {
 				if (selectedDays.length === 0) {
 					Alert.alert(
@@ -393,7 +381,6 @@ const AddAction = () => {
 					);
 					return;
 				}
-
 				if (!commonTime) {
 					Alert.alert(
 						"Configuration Required",
@@ -401,9 +388,7 @@ const AddAction = () => {
 					);
 					return;
 				}
-			}
-			// 2b) TRIGGERED (Single Device)
-			else if (actionType === "triggeredSingle") {
+			} else if (actionType === "triggeredSingle") {
 				if (
 					!selectedLocation ||
 					!selectedBin ||
@@ -435,9 +420,7 @@ const AddAction = () => {
 						return;
 					}
 				}
-			}
-			// 2c) TRIGGERED (Two-Device Comparison)
-			else if (actionType === "triggeredComparison") {
+			} else if (actionType === "triggeredComparison") {
 				if (
 					!selectedLocation1Comp ||
 					!selectedBin1Comp ||
@@ -473,20 +456,20 @@ const AddAction = () => {
 				}
 			}
 
-			// After validation, construct the current trigger
 			let trigger = {};
 
 			if (actionType === "scheduled") {
-				// SCHEDULED - Single Time Scheduling
 				trigger = {
 					schedule_type: "weekly",
-					days_of_week: selectedDays, // e.g., ["Monday", "Wednesday"]
-					common_time: commonTime, // e.g., "14:00"
+					days_of_week: selectedDays,
+					common_time: commonTime,
 					type: "scheduled",
-					condition: triggers.length === 0 ? null : pendingOperator, // Set condition
+					condition: triggers.length === 0 ? null : pendingOperator,
 				};
 			} else if (actionType === "triggeredSingle") {
-				// SINGLE DEVICE
+				// Store metric label so it remains after state resets
+				const metricLabel =
+					metricsSingle.find((m) => m.value === selectedMetric)?.label || "";
 				if (selectedMetric === "powerState") {
 					trigger = {
 						type: "single_device",
@@ -494,9 +477,10 @@ const AddAction = () => {
 						bin_id: selectedBin,
 						device_id: selectedDevice,
 						metric: selectedMetric,
+						metricLabel,
 						condition: selectedCondition,
 						value: selectedCondition === "eq" ? true : false,
-						conditionOperator: triggers.length === 0 ? null : pendingOperator, // Set condition
+						conditionOperator: triggers.length === 0 ? null : pendingOperator,
 					};
 				} else {
 					trigger = {
@@ -505,20 +489,24 @@ const AddAction = () => {
 						bin_id: selectedBin,
 						device_id: selectedDevice,
 						metric: selectedMetric,
+						metricLabel,
 						condition: selectedCondition,
 						value:
 							selectedCondition === "between"
 								? [conditionValue, secondaryConditionValue]
 								: conditionValue,
-						conditionOperator: triggers.length === 0 ? null : pendingOperator, // Set condition
+						conditionOperator: triggers.length === 0 ? null : pendingOperator,
 					};
 				}
 			} else if (actionType === "triggeredComparison") {
-				// TWO DEVICE
+				// Store metric label for comparison
+				const metricLabel =
+					metricsComp.find((m) => m.value === selectedMetricComp)?.label || "";
 				if (selectedMetricComp === "powerState") {
 					trigger = {
 						type: "two_device_diff",
-						metric: selectedMetricComp, // Single metric applied to both devices
+						metric: selectedMetricComp,
+						metricLabel,
 						device1: {
 							location_id: selectedLocation1Comp,
 							bin_id: selectedBin1Comp,
@@ -531,12 +519,13 @@ const AddAction = () => {
 						},
 						condition: differenceCondition,
 						value: differenceCondition === "eq" ? true : false,
-						conditionOperator: triggers.length === 0 ? null : pendingOperator, // Set condition
+						conditionOperator: triggers.length === 0 ? null : pendingOperator,
 					};
 				} else {
 					trigger = {
 						type: "two_device_diff",
-						metric: selectedMetricComp, // Single metric applied to both devices
+						metric: selectedMetricComp,
+						metricLabel,
 						device1: {
 							location_id: selectedLocation1Comp,
 							bin_id: selectedBin1Comp,
@@ -552,13 +541,12 @@ const AddAction = () => {
 							differenceCondition === "between"
 								? [differenceValue, differenceValue2]
 								: differenceValue,
-						conditionOperator: triggers.length === 0 ? null : pendingOperator, // Set condition
+						conditionOperator: triggers.length === 0 ? null : pendingOperator,
 					};
 				}
 			}
 
 			if (editingTriggerIndex !== null) {
-				// **Update the existing trigger**
 				setTriggers((prevTriggers) => {
 					const updatedTriggers = [...prevTriggers];
 					updatedTriggers[editingTriggerIndex] = trigger;
@@ -567,59 +555,40 @@ const AddAction = () => {
 				setEditingTriggerIndex(null);
 				setCurrentStep(3);
 			} else {
-				// **Add the constructed trigger to the triggers array**
 				setTriggers((prevTriggers) => [...prevTriggers, trigger]);
-
-				// **Reset trigger configuration states for the next trigger**
 				resetTriggerConfig();
-
-				// **Show modal to choose adding another trigger or proceed to actions**
 				if (triggers.length > 0) {
-					// If there's already at least one trigger, prompt for logical operator
 					setIsOperatorModalVisible(true);
 				} else {
-					// If it's the first trigger, proceed to step3
 					setCurrentStep(3);
 				}
 			}
 		}
 
-		// Step 3 validation
 		if (currentStep === 3 && actions.length === 0) {
 			Alert.alert("Configuration Required", "Please add at least one action");
 			return;
 		}
 
 		if (currentStep === 3 && actions.length > 0) {
-			// Final Submission will be handled separately
 			return;
 		}
 
 		setCurrentStep((prev) => Math.min(prev + 1, steps.length));
 	};
 
-	/* ----------------------------------------------------------------
-	 * Handle Logical Operator Selection
-	 * ---------------------------------------------------------------- */
 	const handleOperatorSelection = (operator) => {
 		setPendingOperator(operator);
 		setIsOperatorModalVisible(false);
-		// Restart the wizard for the next trigger
 		setCurrentStep(1);
 	};
 
-	/* ----------------------------------------------------------------
-	 * Reset Trigger Configuration (After Adding a Trigger)
-	 * ---------------------------------------------------------------- */
 	const resetTriggerConfig = () => {
 		setActionType(null);
-
-		// Added these for single time scheduling
 		setSelectedDays([]);
 		setCommonTime("");
 		setShowTimePicker(false);
 
-		// Single device
 		setSelectedLocation(null);
 		setSelectedBin(null);
 		setSelectedDevice(null);
@@ -630,7 +599,6 @@ const AddAction = () => {
 		setMetricsSingle([]);
 		setMetricsSingleLoading(false);
 
-		// Two device
 		setSelectedLocation1Comp(null);
 		setSelectedBin1Comp(null);
 		setSelectedDevice1Comp(null);
@@ -649,13 +617,9 @@ const AddAction = () => {
 	};
 
 	const handlePreviousStep = () => {
-		// If on step 3 and there are multiple triggers, go back to the last trigger
 		if (currentStep === 3 && triggers.length > 1) {
-			// Remove the last trigger
 			setTriggers((prevTriggers) => prevTriggers.slice(0, -1));
-			// Set operator as null since it's removed
 			setPendingOperator(null);
-			// Set wizard to step2 to edit the last trigger
 			setCurrentStep(2);
 		} else {
 			setCurrentStep((prev) => Math.max(prev - 1, 1));
@@ -674,7 +638,6 @@ const AddAction = () => {
 	const handleRemoveAction = (index) => {
 		const updated = actions.filter((_, idx) => idx !== index);
 		setActions(updated);
-
 		const focusCopy = { ...actionDropdownFocus };
 		delete focusCopy[index];
 		setActionDropdownFocus(focusCopy);
@@ -710,8 +673,6 @@ const AddAction = () => {
 			return action;
 		});
 		setActions(updated);
-
-		// Reset dependent fields
 		if (field === "location_id") {
 			handleUpdateAction(index, "bin_id", null);
 			handleUpdateAction(index, "device_id", null);
@@ -722,7 +683,6 @@ const AddAction = () => {
 	};
 
 	const handleFinalSubmit = async () => {
-		// Final validation to ensure both devices match
 		if (triggers.some((trigger) => trigger.type === "two_device_diff")) {
 			for (let i = 0; i < triggers.length; i++) {
 				const trigger = triggers[i];
@@ -740,7 +700,6 @@ const AddAction = () => {
 		}
 
 		try {
-			// Process actions
 			const processedActions = actions.map((action) => {
 				switch (action.action_type) {
 					case "send_notification":
@@ -758,13 +717,11 @@ const AddAction = () => {
 							type: "turn_off_relay",
 							device_id: action.device_id,
 						};
-					// Add more cases as needed
 					default:
 						return {};
 				}
 			});
 
-			// Combine triggers with their conditions
 			const combinedTriggers = triggers.map((trigger, index) => {
 				const { conditionOperator, ...rest } = trigger;
 				return {
@@ -775,8 +732,8 @@ const AddAction = () => {
 
 			const newAction = {
 				user_id: userId,
-				type: "triggered", // or "scheduled" based on your logic
-				triggers: combinedTriggers, // Ensure it's 'triggers' if backend expects
+				type: "triggered",
+				triggers: combinedTriggers,
 				actions: processedActions,
 			};
 			console.log("Submitting new action:", newAction);
@@ -792,17 +749,12 @@ const AddAction = () => {
 		}
 	};
 
-	/** Reset everything */
 	const resetForm = () => {
 		setCurrentStep(1);
 		setActionType(null);
-
-		// Added these for single time scheduling
 		setSelectedDays([]);
 		setCommonTime("");
 		setShowTimePicker(false);
-
-		// Single device
 		setSelectedLocation(null);
 		setSelectedBin(null);
 		setSelectedDevice(null);
@@ -812,24 +764,19 @@ const AddAction = () => {
 		setSecondaryConditionValue("");
 		setMetricsSingle([]);
 		setMetricsSingleLoading(false);
-
-		// Two device
 		setSelectedLocation1Comp(null);
 		setSelectedBin1Comp(null);
 		setSelectedDevice1Comp(null);
 		setDeviceType1(null);
 		setSelectedMetricComp(null);
-
 		setSelectedLocation2Comp(null);
 		setSelectedBin2Comp(null);
 		setSelectedDevice2Comp(null);
 		setDifferenceCondition(null);
 		setDifferenceValue("");
 		setDifferenceValue2("");
-
 		setMetricsComp([]);
 		setMetricsCompLoading(false);
-
 		setActions([]);
 		setActionDropdownFocus({});
 		setTriggers([]);
@@ -838,17 +785,11 @@ const AddAction = () => {
 		setEditingTriggerIndex(null);
 	};
 
-	/* ----------------------------------------------------------------
-	 * Handle Editing a Trigger
-	 * ---------------------------------------------------------------- */
 	const handleEditTrigger = (index) => {
 		const trigger = triggers[index];
 		setEditingTriggerIndex(index);
-
-		// Set actionType and other fields based on trigger.type
 		if (trigger.type === "scheduled") {
 			setActionType("scheduled");
-			// Updated for single time scheduling
 			setSelectedDays(trigger.days_of_week || []);
 			setCommonTime(trigger.common_time || "");
 		} else if (trigger.type === "single_device") {
@@ -885,14 +826,9 @@ const AddAction = () => {
 				}
 			}
 		}
-
-		// Navigate to step 2
 		setCurrentStep(2);
 	};
 
-	/* ----------------------------------------------------------------
-	 * Handle Removing a Trigger
-	 * ---------------------------------------------------------------- */
 	const handleRemoveTrigger = (index) => {
 		Alert.alert(
 			"Confirm Removal",
@@ -915,9 +851,6 @@ const AddAction = () => {
 		);
 	};
 
-	/* ----------------------------------------------------------------
-	 * Rendering: Step 1
-	 * ---------------------------------------------------------------- */
 	const renderStep1 = () => (
 		<View style={styles.stepContainer}>
 			<Text style={styles.stepTitle}>Select Trigger Type</Text>
@@ -972,9 +905,6 @@ const AddAction = () => {
 		</View>
 	);
 
-	/* ----------------------------------------------------------------
-	 * Rendering: Step 2 (Scheduled) - Updated for Single Time Scheduling
-	 * ---------------------------------------------------------------- */
 	const renderStep2Scheduled = () => (
 		<View style={styles.stepContainer}>
 			<Text style={styles.stepTitle}>Schedule Configuration</Text>
@@ -997,10 +927,8 @@ const AddAction = () => {
 							style={[styles.dayButton, isSelected && styles.dayButtonSelected]}
 							onPress={() => {
 								if (isSelected) {
-									// Deselect the day
 									setSelectedDays(selectedDays.filter((d) => d !== day));
 								} else {
-									// Select the day
 									setSelectedDays([...selectedDays, day]);
 								}
 							}}
@@ -1034,7 +962,6 @@ const AddAction = () => {
 								clearIcon={null}
 								clockIcon={null}
 								disableClock={true}
-								// Optional: Add any additional props as needed
 							/>
 						</View>
 					) : (
@@ -1074,20 +1001,16 @@ const AddAction = () => {
 							setCommonTime(timeString);
 						}
 					}}
-					is24Hour={true} // Ensures 24-hour format for consistency
+					is24Hour={true}
 				/>
 			)}
 		</View>
 	);
 
-	/* ----------------------------------------------------------------
-	 * Rendering: Step 2 (Triggered Single Device)
-	 * ---------------------------------------------------------------- */
 	const renderStep2TriggeredSingleDevice = () => {
 		return (
 			<View style={styles.stepContainer}>
 				<Text style={styles.stepTitle}>Configure Single-Device Trigger</Text>
-
 				{locationsLoading ? (
 					<ActivityIndicator size="large" color="#71A12F" />
 				) : locationsError ? (
@@ -1095,7 +1018,6 @@ const AddAction = () => {
 						<Text style={styles.errorText}>{locationsError}</Text>
 						<TouchableOpacity
 							onPress={() => {
-								/* Retry Logic */
 								setLocationsError(null);
 								setLocationsLoading(true);
 								locationService
@@ -1140,11 +1062,9 @@ const AddAction = () => {
 						selectable={true}
 					/>
 				)}
-
 				{selectedDevice && (
 					<ScrollView>
 						<Text style={styles.label}>Select Metric</Text>
-
 						{metricsSingleLoading ? (
 							<ActivityIndicator size="large" color="#71A12F" />
 						) : (
@@ -1180,7 +1100,6 @@ const AddAction = () => {
 								})}
 							</View>
 						)}
-
 						{selectedMetric && (
 							<ScrollView>
 								<Text style={styles.label}>Condition</Text>
@@ -1195,7 +1114,6 @@ const AddAction = () => {
 								/>
 							</ScrollView>
 						)}
-
 						{selectedCondition && selectedMetric !== "powerState" && (
 							<>
 								<Text style={styles.label}>
@@ -1207,7 +1125,7 @@ const AddAction = () => {
 									style={[
 										styles.input,
 										Platform.OS === "web" && styles.webInput,
-									]} // Added platform-specific styling
+									]}
 									keyboardType="numeric"
 									value={conditionValue}
 									onChangeText={setConditionValue}
@@ -1219,7 +1137,6 @@ const AddAction = () => {
 									autoCapitalize="none"
 									placeholderTextColor="#888"
 								/>
-
 								{selectedCondition === "between" && (
 									<>
 										<Text style={styles.label}>Maximum Value</Text>
@@ -1227,7 +1144,7 @@ const AddAction = () => {
 											style={[
 												styles.input,
 												Platform.OS === "web" && styles.webInput,
-											]} // Added platform-specific styling
+											]}
 											keyboardType="numeric"
 											value={secondaryConditionValue}
 											onChangeText={setSecondaryConditionValue}
@@ -1245,14 +1162,10 @@ const AddAction = () => {
 		);
 	};
 
-	/* ----------------------------------------------------------------
-	 * Rendering: Step 2 (Triggered Two-Device Comparison)
-	 * ---------------------------------------------------------------- */
 	const renderStep2TriggeredComparison = () => {
 		return (
 			<View style={styles.stepContainer}>
 				<Text style={styles.stepTitle}>Configure Two-Device Comparison</Text>
-
 				<ScrollView contentContainerStyle={styles.stepContainerScroll}>
 					<Text style={styles.subSectionTitle}>Device 1</Text>
 					{locationsLoading ? (
@@ -1262,7 +1175,6 @@ const AddAction = () => {
 							<Text style={styles.errorText}>{locationsError}</Text>
 							<TouchableOpacity
 								onPress={() => {
-									/* Retry Logic */
 									setLocationsError(null);
 									setLocationsLoading(true);
 									locationService
@@ -1304,7 +1216,6 @@ const AddAction = () => {
 							selectable={true}
 						/>
 					)}
-
 					<Text style={styles.subSectionTitle}>Device 2</Text>
 					{locationsLoading ? (
 						<ActivityIndicator size="large" color="#71A12F" />
@@ -1313,7 +1224,6 @@ const AddAction = () => {
 							<Text style={styles.errorText}>{locationsError}</Text>
 							<TouchableOpacity
 								onPress={() => {
-									/* Retry Logic */
 									setLocationsError(null);
 									setLocationsLoading(true);
 									locationService
@@ -1358,7 +1268,6 @@ const AddAction = () => {
 							Select Device 1 first to choose Device 2
 						</Text>
 					)}
-
 					{selectedDevice2Comp && (
 						<>
 							<Text style={styles.label}>Select Metric</Text>
@@ -1394,7 +1303,6 @@ const AddAction = () => {
 									})}
 								</View>
 							)}
-
 							{selectedMetricComp && (
 								<>
 									<Text style={styles.label}>Difference Condition</Text>
@@ -1407,7 +1315,6 @@ const AddAction = () => {
 											setDifferenceValue2("");
 										}}
 									/>
-
 									{differenceCondition &&
 										selectedMetricComp !== "powerState" && (
 											<>
@@ -1432,7 +1339,6 @@ const AddAction = () => {
 													autoCapitalize="none"
 													placeholderTextColor="#888"
 												/>
-
 												{differenceCondition === "between" && (
 													<>
 														<Text style={styles.label}>Max Difference</Text>
@@ -1461,9 +1367,6 @@ const AddAction = () => {
 		);
 	};
 
-	/* ----------------------------------------------------------------
-	 * Rendering: Step 2
-	 * ---------------------------------------------------------------- */
 	const renderStep2 = () => {
 		if (actionType === "scheduled") return renderStep2Scheduled();
 		if (actionType === "triggeredSingle")
@@ -1473,22 +1376,8 @@ const AddAction = () => {
 		return null;
 	};
 
-	/* ----------------------------------------------------------------
-	 * Rendering: Step 3 (Summary & Actions)
-	 * ---------------------------------------------------------------- */
 	const renderStep3 = () => {
-		const actionTypeOptions = availableActions;
-
-		// const groupedDevicesData = getGroupedDevicesData(locations);
-
-		// console.log("Grouped Devices Data:", groupedDevicesData);
-
-		//get the device stats for the selecetd dev
-
 		console.log("Selected Device:", selectedDevice);
-
-		//log out as much state data as possible
-
 		console.log("selectedLocation:", selectedLocation);
 		console.log("selectedBin:", selectedBin);
 		console.log("selectedDevice:", selectedDevice);
@@ -1497,11 +1386,9 @@ const AddAction = () => {
 		console.log("conditionValue:", conditionValue);
 		console.log("secondaryConditionValue:", secondaryConditionValue);
 		console.log("selectedDays:", selectedDays);
-
 		console.log(triggers);
 
 		const renderTriggerSummary = () => {
-			// Helper to format the summary visually
 			const SummaryRow = ({ icon, label, value, highlight = false }) => (
 				<View style={styles.summaryRow}>
 					{icon && (
@@ -1529,7 +1416,6 @@ const AddAction = () => {
 			return (
 				<View style={styles.summaryBox}>
 					<Text style={styles.subSectionTitle}>Trigger Summary</Text>
-
 					{triggers.map((trigger, index) => (
 						<View key={index}>
 							{trigger.condition && index > 0 && (
@@ -1537,9 +1423,7 @@ const AddAction = () => {
 									icon={
 										trigger.condition === "and" ? "toggle-on" : "toggle-off"
 									}
-									label={`Condition between Trigger ${index} and Trigger ${
-										index + 1
-									}`}
+									label={`Condition between Trigger ${index} and Trigger ${index + 1}`}
 									value={trigger.condition.toUpperCase()}
 								/>
 							)}
@@ -1558,12 +1442,11 @@ const AddAction = () => {
 									/>
 									<SummaryRow
 										icon="access-time"
-										label={`Common Time`}
+										label="Common Time"
 										value={trigger.common_time}
 									/>
 								</>
 							)}
-
 							{trigger.type === "single_device" && (
 								<>
 									<SummaryRow
@@ -1586,10 +1469,7 @@ const AddAction = () => {
 									<SummaryRow
 										icon={metricIcons[trigger.metric] || "analytics"}
 										label="Metric"
-										value={
-											metricsSingle.find((m) => m.value === trigger.metric)
-												?.label || "N/A"
-										}
+										value={trigger.metricLabel || "N/A"}
 									/>
 									<SummaryRow
 										icon="compare"
@@ -1606,7 +1486,6 @@ const AddAction = () => {
 									/>
 								</>
 							)}
-
 							{trigger.type === "two_device_diff" && (
 								<>
 									<SummaryRow
@@ -1622,7 +1501,7 @@ const AddAction = () => {
 											locations
 												.flatMap((loc) => loc.bins)
 												.flatMap((bin) => bin.devices)
-												.find((d) => d.value === trigger.device1.device_id)
+												.find((d) => d.id === trigger.device1.device_id)
 												?.name || "Unknown"
 										}
 									/>
@@ -1633,17 +1512,14 @@ const AddAction = () => {
 											locations
 												.flatMap((loc) => loc.bins)
 												.flatMap((bin) => bin.devices)
-												.find((d) => d.value === trigger.device2.device_id)
+												.find((d) => d.id === trigger.device2.device_id)
 												?.name || "Unknown"
 										}
 									/>
 									<SummaryRow
 										icon={metricIcons[trigger.metric] || "analytics"}
 										label="Metric"
-										value={
-											metricsComp.find((m) => m.value === trigger.metric)
-												?.label || "N/A"
-										}
+										value={trigger.metricLabel || "N/A"}
 									/>
 									<SummaryRow
 										icon="rule"
@@ -1660,7 +1536,6 @@ const AddAction = () => {
 									/>
 								</>
 							)}
-
 							<View style={styles.triggerActionsContainer}>
 								<TouchableOpacity
 									style={styles.editButton}
@@ -1686,9 +1561,7 @@ const AddAction = () => {
 		return (
 			<ScrollView style={styles.stepContainer}>
 				<Text style={styles.stepTitle}>When: </Text>
-
 				{renderTriggerSummary()}
-
 				<TouchableOpacity
 					style={styles.addButton}
 					onPress={() => {
@@ -1698,30 +1571,22 @@ const AddAction = () => {
 					<MaterialIcons name="add" size={20} color="#FFF" />
 					<Text style={styles.addButtonText}>Add Trigger</Text>
 				</TouchableOpacity>
-
 				<Text style={styles.stepTitle}>Do: </Text>
-
 				<Text style={styles.subSectionTitle}>Actions</Text>
 				{actions.map((action, index) => {
-					// Get action details from availableActions
 					const actionDetails = availableActions.find(
 						(a) => a.value === action.action_type
 					);
-
-					// Filter the bins for the selected location in this action
 					const selectedLoc = locations.find(
 						(l) => l.value === action.location_id
 					);
 					const binsForLocation = selectedLoc ? selectedLoc.bins : [];
-
-					// Filter devices for the selected bin
 					const selectedBinInLoc = binsForLocation.find(
 						(b) => b.value === action.bin_id
 					);
 					const devicesForBin = selectedBinInLoc
 						? selectedBinInLoc.devices
 						: [];
-
 					return (
 						<View key={action.id} style={styles.actionItem}>
 							<Text style={styles.label}>Action Type</Text>
@@ -1735,7 +1600,6 @@ const AddAction = () => {
 									{actionDetails?.label || "Unknown Action"}
 								</Text>
 							</View>
-
 							{action.action_type === "send_notification" && (
 								<>
 									<Text style={styles.label}>Notification Message</Text>
@@ -1755,7 +1619,6 @@ const AddAction = () => {
 									/>
 								</>
 							)}
-
 							{(action.action_type === "turn_on_relay" ||
 								action.action_type === "turn_off_relay") && (
 								<>
@@ -1767,7 +1630,6 @@ const AddAction = () => {
 											<Text style={styles.errorText}>{locationsError}</Text>
 											<TouchableOpacity
 												onPress={() => {
-													/* Retry Logic */
 													setLocationsError(null);
 													setLocationsLoading(true);
 													locationService
@@ -1810,7 +1672,6 @@ const AddAction = () => {
 									)}
 								</>
 							)}
-
 							<TouchableOpacity
 								style={styles.removeButton}
 								onPress={() => handleRemoveAction(index)}
@@ -1821,12 +1682,10 @@ const AddAction = () => {
 						</View>
 					);
 				})}
-
 				<TouchableOpacity style={styles.addButton} onPress={handleAddAction}>
 					<MaterialIcons name="add" size={20} color="#FFF" />
 					<Text style={styles.addButtonText}>Add Action</Text>
 				</TouchableOpacity>
-
 				<Modal
 					visible={isActionModalVisible}
 					animationType="slide"
@@ -1858,7 +1717,6 @@ const AddAction = () => {
 						</TouchableOpacity>
 					</View>
 				</Modal>
-
 				<Modal
 					visible={isOperatorModalVisible}
 					transparent={true}
@@ -1898,9 +1756,6 @@ const AddAction = () => {
 		);
 	};
 
-	/* ----------------------------------------------------------------
-	 * Final Step Rendering
-	 * ---------------------------------------------------------------- */
 	const renderCurrentStep = () => {
 		switch (currentStep) {
 			case 1:
@@ -1922,12 +1777,10 @@ const AddAction = () => {
 						<View style={styles.backContainer}>
 							<BackButton label="Back" />
 						</View>
-
 						<View style={styles.headerContainer}>
 							<Text style={styles.headerTitle}>Create New Action</Text>
 							<View style={{ width: 24 }} />
 						</View>
-
 						<View style={styles.progressContainer}>
 							<Progress.Bar
 								progress={currentStep / steps.length}
@@ -1942,9 +1795,7 @@ const AddAction = () => {
 								Step {currentStep} of {steps.length}: {steps[currentStep - 1]}
 							</Text>
 						</View>
-
 						<View style={styles.contentContainer}>{renderCurrentStep()}</View>
-
 						{currentStep < 3 && (
 							<View style={styles.navigationContainer}>
 								{currentStep > 1 && (
@@ -1971,7 +1822,6 @@ const AddAction = () => {
 								)}
 							</View>
 						)}
-
 						{currentStep === 3 && (
 							<View style={styles.navigationContainer}>
 								{triggers.length > 0 && actions.length > 0 && (
@@ -1992,12 +1842,10 @@ const AddAction = () => {
 					<View style={styles.backContainer}>
 						<BackButton label="Back" />
 					</View>
-
 					<View style={styles.headerContainer}>
 						<Text style={styles.headerTitle}>Create New Action</Text>
 						<View style={{ width: 24 }} />
 					</View>
-
 					<View style={styles.progressContainer}>
 						<Progress.Bar
 							progress={currentStep / steps.length}
@@ -2012,9 +1860,7 @@ const AddAction = () => {
 							Step {currentStep} of {steps.length}: {steps[currentStep - 1]}
 						</Text>
 					</View>
-
 					<View style={styles.contentContainer}>{renderCurrentStep()}</View>
-
 					{currentStep < 3 && (
 						<View style={styles.navigationContainer}>
 							{currentStep > 1 && (
@@ -2037,7 +1883,6 @@ const AddAction = () => {
 							)}
 						</View>
 					)}
-
 					{currentStep === 3 && (
 						<View style={styles.navigationContainer}>
 							{triggers.length > 0 && actions.length > 0 && (
@@ -2131,8 +1976,6 @@ const styles = StyleSheet.create({
 		marginBottom: SIZES.base,
 		padding: 5,
 	},
-
-	/* Step Titles */
 	stepContainer: {},
 	stepContainerScroll: {
 		paddingBottom: SIZES.base * 2,
@@ -2144,14 +1987,12 @@ const styles = StyleSheet.create({
 		marginBottom: SIZES.base,
 		textAlign: "center",
 	},
-
-	/* Trigger Cards */
 	triggerCard: {
 		width: "100%",
 		backgroundColor: COLORS.white,
 		borderRadius: SIZES.radius,
-		padding: 15, // Reduced padding for compactness
-		marginBottom: 10, // Reduced margin
+		padding: 15,
+		marginBottom: 10,
 		borderWidth: 2,
 		borderColor: COLORS.border,
 		flexDirection: "row",
@@ -2162,34 +2003,32 @@ const styles = StyleSheet.create({
 		backgroundColor: "#F8FCF3",
 	},
 	triggerTextContainer: {
-		marginLeft: 10, // Reduced margin
+		marginLeft: 10,
 		flex: 1,
 	},
 	triggerTitle: {
 		fontSize: 16,
 		fontWeight: "600",
 		color: COLORS.textDark,
-		marginBottom: 3, // Reduced margin
+		marginBottom: 3,
 	},
 	triggerDescription: {
 		fontSize: 14,
 		color: COLORS.textLight,
 	},
-
-	/* Labels & Inputs */
 	label: {
 		fontSize: 16,
 		color: COLORS.textDark,
-		marginBottom: 4, // Reduced margin
+		marginBottom: 4,
 	},
 	dropdown: {
 		backgroundColor: "#F9F9F9",
 		borderColor: COLORS.border,
 		borderRadius: SIZES.radius,
-		marginBottom: 10, // Reduced margin
+		marginBottom: 10,
 		paddingLeft: 12,
 		paddingRight: 12,
-		height: 45, // Reduced height
+		height: 45,
 	},
 	placeholderStyle: {
 		fontSize: 16,
@@ -2208,54 +2047,49 @@ const styles = StyleSheet.create({
 		height: 20,
 		display: "none",
 	},
-
 	input: {
 		backgroundColor: "#F9F9F9",
 		borderRadius: SIZES.radius,
-		padding: 12, // Reduced padding
+		padding: 12,
 		fontSize: 16,
 		color: COLORS.textDark,
-		marginBottom: 12, // Reduced margin
+		marginBottom: 12,
 		borderWidth: 1,
 		borderColor: COLORS.border,
 	},
 	webInput: {
-		outlineStyle: "none", // Removes the outline specifically for web
+		outlineStyle: "none",
 	},
-
-	/* Date Picker */
 	datePickerButton: {
 		flexDirection: "row",
 		alignItems: "center",
 		backgroundColor: "#F9F9F9",
-		padding: 10, // Reduced padding
+		padding: 10,
 		borderRadius: SIZES.radius,
-		marginBottom: 10, // Reduced margin
+		marginBottom: 10,
 		borderWidth: 1,
 		borderColor: COLORS.border,
 	},
 	datePickerText: {
-		marginLeft: 8, // Reduced margin
+		marginLeft: 8,
 		fontSize: 16,
 		color: COLORS.textDark,
 	},
-
-	/* Badges for Metrics */
 	badgeContainer: {
 		flexDirection: "row",
 		flexWrap: "wrap",
 		justifyContent: "center",
-		marginBottom: 10, // Reduced margin
+		marginBottom: 10,
 	},
 	badge: {
 		flexDirection: "row",
 		alignItems: "center",
-		paddingVertical: 6, // Reduced padding
-		paddingHorizontal: 10, // Reduced padding
+		paddingVertical: 6,
+		paddingHorizontal: 10,
 		borderWidth: 1,
 		borderColor: COLORS.border,
 		borderRadius: 20,
-		margin: 3, // Reduced margin
+		margin: 3,
 		backgroundColor: "#F9F9F9",
 	},
 	badgeActive: {
@@ -2270,17 +2104,13 @@ const styles = StyleSheet.create({
 		fontWeight: "600",
 		color: COLORS.primary,
 	},
-
-	/* Sub-Section Titles */
 	subSectionTitle: {
 		fontSize: 16,
 		fontWeight: "bold",
 		color: COLORS.textDark,
-		marginBottom: 6, // Reduced margin
-		marginTop: 8, // Reduced margin
+		marginBottom: 6,
+		marginTop: 8,
 	},
-
-	/* Step Navigation */
 	navigationContainer: {
 		flexDirection: "row",
 		justifyContent: "space-between",
@@ -2295,11 +2125,11 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 		backgroundColor: COLORS.primary,
 		paddingVertical: 10,
-		paddingHorizontal: 12, // Reduced padding
+		paddingHorizontal: 12,
 		borderRadius: SIZES.radius,
 		justifyContent: "center",
 		flex: 1,
-		marginHorizontal: 4, // Reduced margin
+		marginHorizontal: 4,
 	},
 	nextButtonText: {
 		color: COLORS.white,
@@ -2310,11 +2140,11 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		alignItems: "center",
 		backgroundColor: COLORS.primary,
-		paddingVertical: 12, // Reduced padding
-		paddingHorizontal: 16, // Reduced padding
+		paddingVertical: 12,
+		paddingHorizontal: 16,
 		borderRadius: SIZES.radius,
 		alignSelf: "center",
-		marginTop: 8, // Reduced margin
+		marginTop: 8,
 	},
 	submitButtonText: {
 		color: COLORS.white,
@@ -2322,10 +2152,8 @@ const styles = StyleSheet.create({
 		fontWeight: "bold",
 		marginLeft: 8,
 	},
-
-	/* Actions List */
 	actionItem: {
-		marginBottom: 12, // Reduced margin
+		marginBottom: 12,
 		borderWidth: 1,
 		borderColor: COLORS.border,
 		borderRadius: SIZES.radius,
@@ -2335,7 +2163,7 @@ const styles = StyleSheet.create({
 	removeButton: {
 		flexDirection: "row",
 		alignItems: "center",
-		marginTop: 8, // Reduced margin
+		marginTop: 8,
 	},
 	removeButtonText: {
 		fontSize: 16,
@@ -2346,10 +2174,10 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 		backgroundColor: COLORS.primary,
 		paddingVertical: 10,
-		paddingHorizontal: 12, // Reduced padding
+		paddingHorizontal: 12,
 		borderRadius: SIZES.radius,
 		alignSelf: "flex-start",
-		marginTop: 8, // Reduced margin
+		marginTop: 8,
 	},
 	addButtonText: {
 		color: COLORS.white,
@@ -2357,24 +2185,22 @@ const styles = StyleSheet.create({
 		fontWeight: "bold",
 		marginLeft: 8,
 	},
-
-	/* Error & Info States */
 	errorText: {
 		color: COLORS.error,
 		fontSize: 16,
-		marginBottom: 8, // Reduced margin
+		marginBottom: 8,
 	},
 	infoText: {
 		color: COLORS.textLight,
 		fontSize: 16,
 		textAlign: "center",
-		marginVertical: 8, // Reduced margin
+		marginVertical: 8,
 	},
 	retryText: {
 		color: COLORS.primary,
 		fontSize: 16,
 		textAlign: "center",
-		marginTop: 8, // Reduced margin
+		marginTop: 8,
 		textDecorationLine: "underline",
 	},
 	removeButtonSummary: {
@@ -2407,19 +2233,17 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		marginLeft: 4,
 	},
-
-	/* Summary Box */
 	summaryRow: {
 		flexDirection: "row",
 		alignItems: "center",
-		marginVertical: 6, // Reduced margin
+		marginVertical: 6,
 	},
 	iconContainer: {
-		width: 25, // Reduced width
-		height: 25, // Reduced height
+		width: 25,
+		height: 25,
 		justifyContent: "center",
 		alignItems: "center",
-		marginRight: 8, // Reduced margin
+		marginRight: 8,
 	},
 	summaryLabel: {
 		fontSize: 14,
@@ -2443,21 +2267,17 @@ const styles = StyleSheet.create({
 		padding: SIZES.base,
 		marginBottom: SIZES.base,
 	},
-
-	/* Action Type Display */
 	actionTypeContainer: {
 		flexDirection: "row",
 		alignItems: "center",
-		marginBottom: 6, // Reduced margin
+		marginBottom: 6,
 	},
 	actionTypeLabel: {
 		fontSize: 16,
 		color: COLORS.textDark,
-		marginLeft: 8, // Reduced margin
+		marginLeft: 8,
 		fontWeight: "600",
 	},
-
-	/* Modal Styles */
 	modalOverlay: {
 		flex: 1,
 		backgroundColor: "rgba(0,0,0,0.5)",
@@ -2502,7 +2322,6 @@ const styles = StyleSheet.create({
 		paddingLeft: 10,
 		paddingRight: 10,
 	},
-
 	operatorModalContent: {
 		width: "80%",
 		backgroundColor: COLORS.white,
@@ -2523,12 +2342,9 @@ const styles = StyleSheet.create({
 		fontSize: 16,
 		fontWeight: "bold",
 	},
-
-	/* Additional Step Content */
 	additionalStepContent: {
 		paddingTop: SIZES.base,
 	},
-
 	inlineSummary: {
 		flexDirection: "row",
 		flexWrap: "wrap",
@@ -2544,14 +2360,10 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		color: COLORS.textDark,
 	},
-
-	/* Trigger Actions Container */
 	triggerActionsContainer: {
 		flexDirection: "row",
 		marginTop: 8,
 	},
-
-	/* Weekly Scheduler Styles */
 	daysContainer: {
 		flexDirection: "row",
 		flexWrap: "wrap",
@@ -2589,14 +2401,14 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		alignItems: "center",
 		backgroundColor: "#F9F9F9",
-		padding: 10, // Reduced padding
+		padding: 10,
 		borderRadius: SIZES.radius,
-		marginBottom: 10, // Reduced margin
+		marginBottom: 10,
 		borderWidth: 1,
 		borderColor: COLORS.border,
 	},
 	timePickerText: {
-		marginLeft: 8, // Reduced margin
+		marginLeft: 8,
 		fontSize: 16,
 		color: COLORS.textDark,
 	},
@@ -2610,12 +2422,9 @@ const styles = StyleSheet.create({
 		padding: 10,
 	},
 	webTimeInput: {
-		// Remove the default border for a cleaner look
 		borderWidth: 0,
-		// Add a bottom border to mimic the DateTimePicker style
 		borderBottomWidth: 1,
 		borderColor: COLORS.border,
-		// Adjust padding and margin as needed
 		paddingVertical: 8,
 		paddingHorizontal: 10,
 		fontSize: 16,
@@ -2623,16 +2432,6 @@ const styles = StyleSheet.create({
 	},
 });
 
-/* ----------------------------------------------------------------
- * ConditionBadge Component
- * ---------------------------------------------------------------- */
-/**
- * ConditionBadge Component
- * @param {Object} props
- * @param {Array<{label: string, value: string, icon: string}>} props.options - Condition options
- * @param {string} props.selectedValue - Currently selected condition
- * @param {Function} props.onSelect - Function to call when a condition is selected
- */
 const ConditionBadge = ({ options, selectedValue, onSelect }) => {
 	return (
 		<View style={styles.badgeContainer}>
@@ -2648,7 +2447,7 @@ const ConditionBadge = ({ options, selectedValue, onSelect }) => {
 							name={option.icon}
 							size={16}
 							color={isActive ? COLORS.primary : COLORS.textDark}
-							style={{ marginRight: 4 }} // Reduced margin
+							style={{ marginRight: 4 }}
 						/>
 						<Text
 							style={[styles.badgeText, isActive && styles.badgeTextActive]}
@@ -2662,23 +2461,10 @@ const ConditionBadge = ({ options, selectedValue, onSelect }) => {
 	);
 };
 
-/* ----------------------------------------------------------------
- * ActionCard Component
- * ---------------------------------------------------------------- */
-/**
- * ActionCard Component
- * @param {Object} props
- * @param {{label: string, value: string, icon: string, description: string}} props.action - Action details
- * @param {boolean} props.isSelected - Whether the action is selected
- * @param {Function} props.onSelect - Function to call when the action is selected
- */
 const ActionCard = ({ action, isSelected, onSelect }) => {
 	return (
 		<TouchableOpacity
-			style={[
-				styles.triggerCard, // Reusing triggerCard styles for consistency
-				isSelected && styles.selectedCard,
-			]}
+			style={[styles.triggerCard, isSelected && styles.selectedCard]}
 			onPress={() => onSelect(action.value)}
 		>
 			<MaterialIcons name={action.icon} size={28} color="#71A12F" />

@@ -302,7 +302,7 @@ export function LocationsList({
 				maxToRenderPerBatch={10}
 				windowSize={21}
 				removeClippedSubviews
-				scrollEnabled={true}
+				scrollEnabled={false}
 			/>
 		</ContainerComponent>
 	);
