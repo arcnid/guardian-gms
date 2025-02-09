@@ -101,10 +101,7 @@ const NotificationsSettings = () => {
 					);
 				}
 			} else {
-				//before we do anythign initialize firebase app
-
-				// Initialize Firebase and set up notification channel
-
+				// Before we do anything, initialize the Firebase app.
 				initializeFirebase();
 
 				await Notifications.setNotificationChannelAsync("default", {
@@ -139,10 +136,37 @@ const NotificationsSettings = () => {
 						);
 						return;
 					}
+
 					const pushNotificationToken =
 						await Notifications.getExpoPushTokenAsync({ projectId });
-
 					console.log("Push Notification Token:", pushNotificationToken);
+
+					// Clean up the token from the response (same logic as for iOS)
+					let expoPushToken = pushNotificationToken.data;
+					if (expoPushToken.startsWith("ExponentPushToken[")) {
+						expoPushToken = expoPushToken
+							.replace(/^ExponentPushToken\[/, "")
+							.replace(/\]$/, "");
+					}
+					console.log("Cleaned Expo push token:", expoPushToken);
+
+					// Register the device with the backend.
+					const response = await notificationService.addDeviceToNotification({
+						userId,
+						expoPushToken,
+					});
+
+					if (response && response.alreadyRegistered) {
+						Alert.alert(
+							"Notifications Already Set Up",
+							"Your device is already registered for notifications."
+						);
+					} else {
+						Alert.alert(
+							"Notifications Enabled",
+							"Notifications have been enabled successfully!"
+						);
+					}
 				}
 			}
 

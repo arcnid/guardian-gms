@@ -59,8 +59,6 @@ export default {
 			"expo-notifications",
 			"expo-localization",
 			"@react-native-firebase/app",
-			"@react-native-firebase/auth",
-			"@react-native-firebase/crashlytics",
 		],
 		experiments: {
 			typedRoutes: true,
