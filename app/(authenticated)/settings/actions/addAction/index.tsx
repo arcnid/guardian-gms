@@ -1479,7 +1479,26 @@ const AddAction = () => {
 	const renderStep3 = () => {
 		const actionTypeOptions = availableActions;
 
-		const groupedDevicesData = getGroupedDevicesData(locations);
+		// const groupedDevicesData = getGroupedDevicesData(locations);
+
+		// console.log("Grouped Devices Data:", groupedDevicesData);
+
+		//get the device stats for the selecetd dev
+
+		console.log("Selected Device:", selectedDevice);
+
+		//log out as much state data as possible
+
+		console.log("selectedLocation:", selectedLocation);
+		console.log("selectedBin:", selectedBin);
+		console.log("selectedDevice:", selectedDevice);
+		console.log("selectedMetric:", selectedMetric);
+		console.log("selectedCondition:", selectedCondition);
+		console.log("conditionValue:", conditionValue);
+		console.log("secondaryConditionValue:", secondaryConditionValue);
+		console.log("selectedDays:", selectedDays);
+
+		console.log(triggers);
 
 		const renderTriggerSummary = () => {
 			// Helper to format the summary visually
@@ -1560,7 +1579,7 @@ const AddAction = () => {
 											locations
 												.flatMap((loc) => loc.bins)
 												.flatMap((bin) => bin.devices)
-												.find((d) => d.value === trigger.device_id)?.name ||
+												.find((d) => d.id === trigger.device_id)?.name ||
 											"Unknown"
 										}
 									/>
