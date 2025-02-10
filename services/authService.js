@@ -27,8 +27,6 @@ export const AuthService = {
 	},
 
 	getCurrentUser: async () => {
-		console.log("supabase", supabase);
-		console.log("supabase.auth.getUser()", supabase.auth.getUser());
 		return await supabase.auth.getUser();
 	},
 

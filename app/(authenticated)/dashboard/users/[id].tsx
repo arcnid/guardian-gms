@@ -42,8 +42,9 @@ const ProfileScreen = () => {
 				console.log("User data set successfully.");
 			} else {
 				//if the previous fetch failed to get the user data, try to get it from the user id
-				// const { data } = await UserService.getUserById(userId);
+				const { data } = await UserService.getUserById(userId);
 				console.log("Fetched User Data:", data); // Debugging log
+				setUserData(data);
 				console.warn("User data is missing in the response.");
 				setError("User data is incomplete.");
 			}

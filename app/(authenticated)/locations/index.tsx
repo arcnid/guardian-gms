@@ -93,6 +93,7 @@ const LocationsScreen = () => {
 	 * @param {Array<any>} data - The locations data to cache
 	 */
 	const cacheLocations = async (data) => {
+		console.log(data);
 		try {
 			const cacheEntry = {
 				timestamp: new Date().getTime(),
@@ -123,17 +124,21 @@ const LocationsScreen = () => {
 			// Fetch fresh data in the background
 			const res = await locationService.getLocationsForUser(userId);
 
+			console.log("Fetched locations:", res);
+
 			// Compare the fetched data with cached data
-			if (
-				!cachedData ||
-				JSON.stringify(res) !== JSON.stringify(JSON.parse(cachedData)?.data)
-			) {
-				console.log("New data fetched. Updating UI and cache.");
-				setLocations(res);
-				await cacheLocations(res); // Cache the fresh data
-			} else {
-				console.log("Fetched data matches cached data. No update required.");
-			}
+			console.log("Cached Data:", cachedData);
+			console.log();
+			// if (
+			// 	!cachedData ||
+			// 	JSON.stringify(res) !== JSON.stringify(JSON.parse(cachedData)?.data)
+			// ) {
+			console.log("New data fetched. Updating UI and cache.");
+			setLocations(res);
+			await cacheLocations(res); // Cache the fresh data
+			// } else {
+			console.log("Fetched data matches cached data. No update required.");
+			// }
 		} catch (err) {
 			console.error("Error fetching locations:", err);
 			setError("Failed to load locations. Please try again.");

@@ -9,9 +9,11 @@ import {
 	TouchableOpacity,
 	Platform,
 	UIManager,
+	TextInput,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { binService } from "@/services/bins/service"; // <-- Import your bin service
 
 // (Optional) Enable LayoutAnimation on Android if you plan to use simple layout changes.
 if (
@@ -72,6 +74,7 @@ export function LocationsList({
 	selectedDevice = undefined,
 	onDeviceSelect,
 }) {
+	console.log("data", data);
 	if (!data || data.length === 0) {
 		return (
 			<View style={styles.noDataContainer}>
@@ -218,7 +221,32 @@ const SiteCard = memo(function SiteCard({
 	selectedDevice,
 	onDeviceSelect,
 }) {
+	// Determine if this site has bins.
 	const hasBins = site.bins && site.bins.length > 0;
+
+	// --- For Regular View Only (not selectable) ---
+	// We'll show a plus button in the header to add bins.
+	const [isAddingBin, setIsAddingBin] = useState(false);
+	const [newBinName, setNewBinName] = useState("");
+
+	const handleAddBin = async () => {
+		if (!newBinName.trim()) return;
+		try {
+			// Call your BinService to add the new bin.
+			const newBin = await BinService.addBin(site.id, newBinName.trim());
+			// Update the site bins. (Note: This example mutates the site object; in a real-world
+			// scenario, you might trigger a refresh or use a callback to update parent state.)
+			if (site.bins) {
+				site.bins.push(newBin);
+			} else {
+				site.bins = [newBin];
+			}
+			setIsAddingBin(false);
+			setNewBinName("");
+		} catch (error) {
+			console.error("Error adding bin:", error);
+		}
+	};
 
 	return (
 		<View style={styles.card}>
@@ -253,14 +281,26 @@ const SiteCard = memo(function SiteCard({
 						</Text>
 					</View>
 				</View>
-				{hasBins && (
-					<MaterialIcons
-						name={expanded ? "expand-less" : "expand-more"}
-						size={24}
-						color={Colors.primary}
-					/>
-				)}
+				{/* In regular view only (selectable===false), render the add (+) button */}
+				<View style={styles.cardHeaderRight}>
+					{!selectable && (
+						<TouchableOpacity
+							onPress={() => setIsAddingBin(true)}
+							style={styles.addBinButton}
+						>
+							<MaterialIcons name="add" size={24} color={Colors.primary} />
+						</TouchableOpacity>
+					)}
+					{hasBins && (
+						<MaterialIcons
+							name={expanded ? "expand-less" : "expand-more"}
+							size={24}
+							color={Colors.primary}
+						/>
+					)}
+				</View>
 			</TouchableOpacity>
+			{/* If the location is expanded and has bins, render the bin cards */}
 			{expanded && hasBins && (
 				<View style={styles.cardContent}>
 					{site.bins.map((bin) => {
@@ -284,6 +324,28 @@ const SiteCard = memo(function SiteCard({
 			{!hasBins && (
 				<View style={{ marginTop: 12 }}>
 					<Text style={styles.noDataText}>No bins for this location.</Text>
+				</View>
+			)}
+			{/* Render the "Add Bin" form if the user clicked the plus button (only in regular view) */}
+			{!selectable && isAddingBin && (
+				<View style={styles.addBinFormContainer}>
+					<TextInput
+						style={styles.addBinFormInput}
+						placeholder="Enter bin name"
+						value={newBinName}
+						onChangeText={setNewBinName}
+					/>
+					<TouchableOpacity onPress={handleAddBin}>
+						<MaterialIcons name="check" size={24} color={Colors.primary} />
+					</TouchableOpacity>
+					<TouchableOpacity
+						onPress={() => {
+							setIsAddingBin(false);
+							setNewBinName("");
+						}}
+					>
+						<MaterialIcons name="close" size={24} color={Colors.textMuted} />
+					</TouchableOpacity>
 				</View>
 			)}
 		</View>
@@ -567,6 +629,11 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		alignItems: "center",
 	},
+	// New right-side container for the header that holds the add button and the expand toggle.
+	cardHeaderRight: {
+		flexDirection: "row",
+		alignItems: "center",
+	},
 	siteIcon: {
 		marginRight: 10,
 	},
@@ -661,6 +728,24 @@ const styles = StyleSheet.create({
 		fontSize: Fonts.caption.fontSize,
 		color: Colors.textMuted,
 		marginLeft: 4,
+	},
+	// Styles for the add bin button in the site header.
+	addBinButton: {
+		marginRight: 8,
+	},
+	// Styles for the inline add bin form.
+	addBinFormContainer: {
+		flexDirection: "row",
+		alignItems: "center",
+		marginTop: 8,
+	},
+	addBinFormInput: {
+		flex: 1,
+		borderWidth: 1,
+		borderColor: Colors.iconInactive,
+		borderRadius: 4,
+		padding: 8,
+		marginRight: 8,
 	},
 });
 

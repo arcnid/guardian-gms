@@ -61,6 +61,7 @@ const CustomMapView = ({
 	}
 
 	// Otherwise, fallback to existing functionality using the data prop.
+	// (Since coordinate is not provided, we assume that data exists.)
 	const initialRegion = {
 		latitude: data[0]?.latitude || 43.509,
 		longitude: data[0]?.longitude || -96.9568,
@@ -103,37 +104,39 @@ const CustomMapView = ({
 	);
 };
 
+// Custom validator for the `data` prop. If `coordinate` is not provided, then data is required.
 CustomMapView.propTypes = {
 	onMarkerPress: PropTypes.func.isRequired,
-	data: PropTypes.arrayOf(
-		PropTypes.shape({
-			id: PropTypes.string.isRequired,
-			user_id: PropTypes.string,
-			created_at: PropTypes.string,
-			name: PropTypes.string.isRequired,
-			latitude: PropTypes.number.isRequired,
-			longitude: PropTypes.number.isRequired,
-			bins: PropTypes.arrayOf(
-				PropTypes.shape({
-					id: PropTypes.string.isRequired,
-					created_at: PropTypes.string,
-					name: PropTypes.string,
-					location_id: PropTypes.string,
-					devices: PropTypes.arrayOf(
-						PropTypes.shape({
-							id: PropTypes.string.isRequired,
-							name: PropTypes.string,
-							type: PropTypes.string,
-							humidity: PropTypes.number,
-							temperature: PropTypes.number,
-							lastRead: PropTypes.string,
-							isOnline: PropTypes.bool,
-						})
-					),
-				})
-			),
-		})
-	).isRequired,
+	data: (props, propName, componentName) => {
+		if (!props.coordinate && !props[propName]) {
+			return new Error(
+				`Invalid prop \`${propName}\` supplied to \`${componentName}\`. When \`coordinate\` is not provided, \`${propName}\` is required.`
+			);
+		}
+		if (props[propName] && !Array.isArray(props[propName])) {
+			return new Error(
+				`Invalid prop \`${propName}\` supplied to \`${componentName}\`. Expected an array.`
+			);
+		}
+		// Optionally, you can also validate the shape of each element in the data array:
+		if (props[propName]) {
+			for (let i = 0; i < props[propName].length; i++) {
+				const site = props[propName][i];
+				if (
+					typeof site.id !== "string" ||
+					typeof site.name !== "string" ||
+					typeof site.latitude !== "number" ||
+					typeof site.longitude !== "number"
+				) {
+					return new Error(
+						`Invalid prop \`${propName}[${i}]\` supplied to \`${componentName}\`.`
+					);
+				}
+			}
+		}
+		// Everything is fine.
+		return null;
+	},
 	coordinate: PropTypes.shape({
 		latitude: PropTypes.number.isRequired,
 		longitude: PropTypes.number.isRequired,
