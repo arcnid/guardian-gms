@@ -223,6 +223,15 @@ const LocationsScreen = () => {
 				<CustomMapView data={locations} onMarkerPress={handleMarkerPress} />
 			)}
 
+			{/* Floating "Add Location" Button */}
+			<TouchableOpacity
+				style={styles.addButton}
+				onPress={() => router.push("/locations/add-location")}
+				activeOpacity={0.8}
+			>
+				<MaterialIcons name="add" size={30} color="#fff" />
+			</TouchableOpacity>
+
 			{/* Modal for displaying site details */}
 			{selectedSite && (
 				<Modal
@@ -402,6 +411,20 @@ const styles = StyleSheet.create({
 	modalContent: {
 		flex: 1,
 		// You can add padding or other styles if desired
+	},
+
+	/** Floating "Add Location" Button **/
+	addButton: {
+		position: "absolute",
+		bottom: 20,
+		right: 20,
+		backgroundColor: Colors.primary,
+		width: 60,
+		height: 60,
+		borderRadius: 30,
+		justifyContent: "center",
+		alignItems: "center",
+		elevation: 5,
 	},
 });
 

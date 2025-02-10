@@ -26,8 +26,10 @@ export const AuthService = {
 		return true;
 	},
 
-	getCurrentUser: () => {
-		return supabase.auth.getUser();
+	getCurrentUser: async () => {
+		console.log("supabase", supabase);
+		console.log("supabase.auth.getUser()", supabase.auth.getUser());
+		return await supabase.auth.getUser();
 	},
 
 	resetPassword: async (email) => {

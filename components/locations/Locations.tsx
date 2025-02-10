@@ -21,6 +21,26 @@ if (
 	UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
+/**
+ * Metric Service to convert temperatures between Celsius and Fahrenheit.
+ */
+const metricService = {
+	/**
+	 * Converts Celsius to Fahrenheit.
+	 *
+	 * @param {number} celsius - The temperature in Celsius.
+	 * @returns {number} The converted temperature in Fahrenheit.
+	 */
+	getCtoF: (celsius) => (celsius * 9) / 5 + 32,
+	/**
+	 * Converts Fahrenheit to Celsius.
+	 *
+	 * @param {number} fahrenheit - The temperature in Fahrenheit.
+	 * @returns {number} The converted temperature in Celsius.
+	 */
+	getFtoC: (fahrenheit) => ((fahrenheit - 32) * 5) / 9,
+};
+
 /** THEME & HELPERS */
 const Colors = {
 	primary: "#71A12F",
@@ -383,7 +403,9 @@ const DeviceItem = memo(function DeviceItem({
 						/>
 						<Text style={styles.metricText}>
 							{device.temperature !== undefined
-								? `${device.temperature}°C`
+								? `${device.temperature}°C (${metricService
+										.getCtoF(device.temperature)
+										.toFixed(1)}°F)`
 								: "N/A"}
 						</Text>
 					</View>

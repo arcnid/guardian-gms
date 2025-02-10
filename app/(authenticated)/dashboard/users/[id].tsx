@@ -17,15 +17,18 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { AuthContext } from "@/contexts/AuthContext";
 import BackButton from "@/components/BackButton";
 import { AuthService } from "@/services/authService";
+import { UserService } from "@/services/users/service";
 
 const ProfileScreen = () => {
 	const router = useRouter();
-	const { logout } = useContext(AuthContext);
+	const { logout, userId } = useContext(AuthContext);
 	const [userData, setUserData] = useState(null); // User data state
 	const [loading, setLoading] = useState(true); // Loading state
 	const [error, setError] = useState(null); // Error state
 	const [isNotificationsEnabled, setIsNotificationsEnabled] = useState(true);
 	const [isDarkMode, setIsDarkMode] = useState(false);
+
+	console.log("userId:", userId); // Debugging log
 
 	// Function to fetch user data
 	const fetchUserData = useCallback(async () => {
@@ -38,6 +41,9 @@ const ProfileScreen = () => {
 				setUserData(data.user);
 				console.log("User data set successfully.");
 			} else {
+				//if the previous fetch failed to get the user data, try to get it from the user id
+				// const { data } = await UserService.getUserById(userId);
+				console.log("Fetched User Data:", data); // Debugging log
 				console.warn("User data is missing in the response.");
 				setError("User data is incomplete.");
 			}

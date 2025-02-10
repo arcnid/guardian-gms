@@ -61,12 +61,6 @@ const SettingsScreen = () => {
 			title: "About",
 			icon: "info-outline",
 		},
-		{
-			id: "9",
-			title: "Logout",
-			icon: "exit-to-app",
-			route: "/logout", // Explicit route for Logout
-		},
 	];
 
 	const handleOptionPress = (option) => {

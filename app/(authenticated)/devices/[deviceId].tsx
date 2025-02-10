@@ -18,6 +18,7 @@ import BackButton from "@/components/BackButton";
 import { RecentSensorData } from "@/components/devices/RecentSensorData";
 import { SensorChart } from "@/components/devices/SensorChart";
 import { RelayControls } from "@/components/devices/RelayControls";
+import { useRouter } from "expo-router";
 
 interface DeviceData {
 	device_id: string;
@@ -46,6 +47,7 @@ const DeviceScreen = () => {
 	const [logs, setLogs] = useState<LogEntry[]>([]);
 	const [latestTempHumid, setLatestTempHumid] = useState<any>(null);
 	const [deviceImageUri, setDeviceImageUri] = useState<string | null>(null);
+	const router = useRouter();
 
 	// Image upload state
 	const [uploadingImage, setUploadingImage] = useState(false);
@@ -332,12 +334,26 @@ const DeviceScreen = () => {
 					</>
 				)}
 
-				<View style={styles.deviceActions}>
-					<Text style={{ fontSize: 20, fontWeight: "bold", marginBottom: 10 }}>
+				<TouchableOpacity
+					style={styles.deviceActions}
+					onPress={() => {
+						router.push("/settings/actions");
+					}}
+					activeOpacity={0.7}
+				>
+					<Text
+						style={{
+							fontSize: 20,
+							fontWeight: "bold",
+							marginBottom: 10,
+							flex: 1,
+						}}
+					>
 						Device Actions
 					</Text>
-					<View style={styles.lastCommunication}></View>
-				</View>
+
+					<MaterialIcons name="chevron-right" size={24} color="#555" />
+				</TouchableOpacity>
 			</ScrollView>
 		</SafeAreaView>
 	);
@@ -369,6 +385,7 @@ const styles = StyleSheet.create({
 		padding: 15,
 		borderRadius: 10,
 		elevation: 3,
+		marginTop: 20,
 	},
 	deviceImage: {
 		width: 80,

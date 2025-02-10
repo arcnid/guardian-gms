@@ -198,6 +198,7 @@ const styles = StyleSheet.create({
 		paddingBottom: 10,
 		paddingLeft: 5,
 		paddingRight: 5,
+		elevation: 3,
 	},
 	container: {
 		marginTop: 20,

@@ -41,23 +41,79 @@ const DashboardScreen = () => {
 		router.push(`/dashboard/users/${userId}`); // Navigate to the Profile screen with userId
 	};
 
-	// Function to fetch device list
+	// Updated function to fetch devices along with their images and status
 	const getDeviceList = useCallback(async () => {
 		try {
-			setError(null); // Reset any previous errors
-			const data = await UserDeviceService.getDevicesByUser(userId);
-			console.log("Fetched Devices:", data);
+			setError(null);
+			setLoading(true);
 
-			if (!Array.isArray(data)) {
-				console.error("Expected data to be an array but got:", typeof data);
+			// 1. Fetch devices associated with the user
+			const deviceData = await UserDeviceService.getDevicesByUser(userId);
+			console.log("Fetched Devices:", deviceData);
+
+			if (!Array.isArray(deviceData)) {
+				console.error(
+					"Expected data to be an array but got:",
+					typeof deviceData
+				);
 				setError("Invalid data format received.");
 				setDevices([]);
 				return;
 			}
 
-			setDevices(data);
+			// 2. Fetch images for the devices
+			const deviceIdList = deviceData.map((device) => device.device_id);
+			console.log("Device IDs for image fetching:", deviceIdList);
+
+			const devicesWithImages =
+				await UserDeviceService.getDevicesWithImage(deviceIdList);
+			console.log("Devices with Images Retrieved:", devicesWithImages);
+
+			// Create a map of device_id to image URL
+			const imageMap = new Map();
+			devicesWithImages.forEach((device) => {
+				imageMap.set(device.device_id, device.image);
+			});
+
+			// Merge images into the device data
+			const updatedDevices = deviceData.map((device) => ({
+				...device,
+				image: imageMap.get(device.device_id) || device.image || "",
+			}));
+
+			// 3. For each device, fetch its most recent log to compute its status.
+			const devicesWithStatus = await Promise.all(
+				updatedDevices.map(async (device) => {
+					try {
+						const logs = await UserDeviceService.getRecentLogs(
+							device.device_id
+						);
+						if (logs && logs.length > 0) {
+							const lastLogTime = new Date(logs[0].created_at);
+							const now = new Date();
+							const diffInMs = now.getTime() - lastLogTime.getTime();
+							// If the latest log is within 60 seconds, mark it as Online
+							return {
+								...device,
+								status: diffInMs <= 60000 ? "Online" : "Offline",
+							};
+						} else {
+							return { ...device, status: "Offline" };
+						}
+					} catch (logError) {
+						console.error(
+							`Error fetching logs for device ${device.device_id}:`,
+							logError
+						);
+						return { ...device, status: "Offline" };
+					}
+				})
+			);
+
+			console.log("Updated Devices with Images and Status:", devicesWithStatus);
+			setDevices(devicesWithStatus);
 		} catch (err) {
-			console.error("Error fetching devices:", err);
+			console.error("Error fetching devices or images:", err);
 			setError("Failed to fetch devices. Please try again.");
 			setDevices([]);
 		} finally {
@@ -94,7 +150,7 @@ const DashboardScreen = () => {
 		}
 	}, [loading, devices, fadeAnim]);
 
-	// Mock data for summary cards (You might want to update these based on actual device data)
+	// Mock data for summary cards updated based on fetched devices
 	const summaryData = [
 		{
 			id: "1",
@@ -141,7 +197,13 @@ const DashboardScreen = () => {
 				activeOpacity={0.8}
 			>
 				<View style={styles.deviceInfo}>
-					<Image source={{ uri: item.image }} style={styles.deviceImage} />
+					{item.image ? (
+						<Image source={{ uri: item.image }} style={styles.deviceImage} />
+					) : (
+						<View style={[styles.deviceImage, styles.placeholderImage]}>
+							<MaterialIcons name="device-hub" size={24} color="#FFFFFF" />
+						</View>
+					)}
 					<View style={styles.deviceTextContainer}>
 						<Text style={styles.deviceName}>{displayName}</Text>
 						<View style={styles.statusContainer}>
@@ -331,9 +393,9 @@ const styles = StyleSheet.create({
 		marginBottom: 20,
 	},
 	summaryCard: {
-		backgroundColor: "#FFFFFF", // White card background
-		borderRadius: 10, // Consistent border radius
-		padding: 20, // Increased padding for better spacing
+		backgroundColor: "#FFFFFF",
+		borderRadius: 10,
+		padding: 20,
 		alignItems: "center",
 		flex: 1,
 		marginHorizontal: 5,
@@ -382,6 +444,9 @@ const styles = StyleSheet.create({
 		marginRight: 15,
 	},
 	deviceInfo: {
+		flex: 1,
+	},
+	deviceTextContainer: {
 		flex: 1,
 	},
 	deviceName: {
@@ -506,5 +571,16 @@ const styles = StyleSheet.create({
 		color: "#FFFFFF",
 		fontSize: 16,
 		fontWeight: "bold",
+	},
+	// Additional styles for device rendering on Dashboard (if needed)
+	placeholderImage: {
+		backgroundColor: "#BDBDBD",
+		justifyContent: "center",
+		alignItems: "center",
+	},
+	statusContainer: {
+		flexDirection: "row",
+		alignItems: "center",
+		marginTop: 4,
 	},
 });

@@ -17,6 +17,31 @@ import {
 } from "@supabase/supabase-js";
 
 /**
+ * Metric Service to convert temperatures between Celsius and Fahrenheit.
+ */
+const metricService = {
+	/**
+	 * Converts Celsius to Fahrenheit.
+	 *
+	 * @param celsius - The temperature in Celsius.
+	 * @returns The converted temperature in Fahrenheit.
+	 */
+	getCtoF: (celsius: number): number => {
+		return (celsius * 9) / 5 + 32;
+	},
+
+	/**
+	 * Converts Fahrenheit to Celsius.
+	 *
+	 * @param fahrenheit - The temperature in Fahrenheit.
+	 * @returns The converted temperature in Celsius.
+	 */
+	getFtoC: (fahrenheit: number): number => {
+		return ((fahrenheit - 32) * 5) / 9;
+	},
+};
+
+/**
  * Helper function to calculate time difference and return a "time ago" string
  */
 const timeAgo = (timestamp: string): string => {
@@ -64,7 +89,8 @@ interface RecentSensorDataProps {
 }
 
 /**
- * RecentSensorData Component to display temperature, humidity, and last communication time
+ * RecentSensorData Component to display temperature, humidity, and last communication time.
+ * Now also displays the temperature in Fahrenheit.
  */
 export const RecentSensorData: React.FC<RecentSensorDataProps> = ({
 	deviceId,
@@ -294,7 +320,10 @@ export const RecentSensorData: React.FC<RecentSensorDataProps> = ({
 					<Text style={styles.label}>Temperature</Text>
 					<Text style={styles.value}>
 						{latestLog && latestLog.temp_sensor_reading !== null
-							? `${latestLog.temp_sensor_reading}°C`
+							? // Display both Celsius and Fahrenheit (rounded to 1 decimal place)
+								`${latestLog.temp_sensor_reading}°C (${metricService
+									.getCtoF(latestLog.temp_sensor_reading)
+									.toFixed(1)}°F)`
 							: "N/A"}
 					</Text>
 				</View>
