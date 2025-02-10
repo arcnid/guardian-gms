@@ -1,6 +1,7 @@
-import React from "react";
+// CustomMapView.js
+import React, { useEffect } from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -13,21 +14,76 @@ const customIcon = new L.Icon({
 	popupAnchor: [0, -40], // Adjust popup anchor to align with the icon
 });
 
-/**
- * CustomMapView Component to display sites on a map
- * @param {Array} data - Array of location objects fetched from the service
- * @param {Function} onMarkerPress - Function to handle marker press events
- */
-export default function CustomMapView({ data, onMarkerPress }) {
+// Helper component to recenter the map when the coordinate changes
+function MapRecenter({ center }) {
+	const map = useMap();
+	useEffect(() => {
+		if (center) {
+			map.setView(center, map.getZoom());
+		}
+	}, [center, map]);
+	return null;
+}
+
+export default function CustomMapView({
+	data,
+	onMarkerPress,
+	coordinate,
+	draggableMarker,
+	onMarkerDragEnd,
+}) {
 	try {
-		// Ensure data is an array and filter out invalid sites
+		// If a coordinate prop is provided, use it to render a single draggable marker.
+		if (coordinate) {
+			const center = [coordinate.latitude, coordinate.longitude];
+			return (
+				<View style={styles.mapWrapper}>
+					<MapContainer
+						center={center}
+						zoom={15} // Closer zoom for location selection
+						scrollWheelZoom
+						style={styles.mapContainer}
+					>
+						{/* Recenter the map when the coordinate changes */}
+						<MapRecenter center={center} />
+						<TileLayer
+							url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+							attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+						/>
+						<Marker
+							position={center}
+							icon={customIcon}
+							draggable={!!draggableMarker}
+							eventHandlers={
+								draggableMarker && onMarkerDragEnd
+									? {
+											dragend: (e) => {
+												// Convert the Leaflet event to a format similar to React Native’s event
+												const latlng = e.target.getLatLng();
+												onMarkerDragEnd({
+													nativeEvent: {
+														coordinate: {
+															latitude: latlng.lat,
+															longitude: latlng.lng,
+														},
+													},
+												});
+											},
+										}
+									: {}
+							}
+						/>
+					</MapContainer>
+				</View>
+			);
+		}
+
+		// Otherwise, use your existing logic with the data prop.
 		const validData = Array.isArray(data)
 			? data.filter(
 					(site) => site && site.latitude != null && site.longitude != null
 				)
 			: [];
-
-		// Use the first site as the default center, or fallback
 		const defaultCenter =
 			validData.length > 0
 				? [validData[0].latitude || 43.509, validData[0].longitude || -96.9568]
@@ -46,7 +102,6 @@ export default function CustomMapView({ data, onMarkerPress }) {
 						attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 					/>
 					{validData.map((site) => {
-						// Count bins/devices safely
 						const binCount = Array.isArray(site.bins) ? site.bins.length : 0;
 						const deviceCount = Array.isArray(site.bins)
 							? site.bins.reduce((acc, bin) => {
@@ -56,7 +111,6 @@ export default function CustomMapView({ data, onMarkerPress }) {
 									return acc;
 								}, 0)
 							: 0;
-
 						return (
 							<Marker
 								key={site.id}
@@ -73,8 +127,7 @@ export default function CustomMapView({ data, onMarkerPress }) {
 										</Text>
 										<Text style={styles.popupDetails}>
 											{binCount} Bin{binCount !== 1 ? "s" : ""}, {deviceCount}{" "}
-											Device
-											{deviceCount !== 1 ? "s" : ""}
+											Device{deviceCount !== 1 ? "s" : ""}
 										</Text>
 									</View>
 								</Popup>

@@ -206,7 +206,7 @@ const LocationsScreen = () => {
 			<TabBar activeTab={activeTab} setActiveTab={setActiveTab} />
 
 			{activeTab === "List" ? (
-				<View style={styles.locationsListContainer}>
+				<ScrollView style={styles.locationsListContainer}>
 					<LocationsList
 						data={locations}
 						selectable={false} // or true if you want device selection
@@ -218,7 +218,7 @@ const LocationsScreen = () => {
 							// Optionally navigate or do other actions
 						}}
 					/>
-				</View>
+				</ScrollView>
 			) : (
 				<CustomMapView data={locations} onMarkerPress={handleMarkerPress} />
 			)}

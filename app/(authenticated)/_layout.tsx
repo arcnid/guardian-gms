@@ -107,6 +107,14 @@ const AuthenticatedLayout = () => {
 						/>
 					),
 				}}
+				listeners={({ navigation }) => ({
+					tabPress: (e) => {
+						// Prevent default behavior
+						e.preventDefault();
+						// Navigate to the /locations route, resetting the stack
+						router.replace("/locations");
+					},
+				})}
 			/>
 
 			{/* Devices Tab with tabPress Listener */}

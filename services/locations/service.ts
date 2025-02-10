@@ -1,8 +1,14 @@
 import { getSupabaseClient } from "@/services/supabaseClient";
 import { UserDeviceService } from "@/services/userDevice/service";
 import { binService } from "@/services/bins/service";
-// (Remove the unused import) import { useRSXformBuffer } from "@shopify/react-native-skia";
+import { v4 as uuidv4 } from "uuid";
 
+interface CreateLocationParams {
+	userId: string;
+	locationName: string;
+	latitude: number;
+	longitude: number;
+}
 export const locationService = {
 	getLocationsForUser: async (userId: string) => {
 		const client = getSupabaseClient();
@@ -100,6 +106,34 @@ export const locationService = {
 			return locations;
 		} catch (error) {
 			console.error("Error fetching data with joins:", error);
+			throw error;
+		}
+	},
+	createLocation: async ({
+		latitude,
+		longitude,
+		locationName,
+		userId,
+	}: CreateLocationParams) => {
+		const client = getSupabaseClient();
+		try {
+			const { data, error } = await client.from("locations").insert([
+				{
+					id: uuidv4(),
+					user_id: userId,
+					name: locationName,
+					latitude,
+					longitude,
+				},
+			]);
+
+			if (error) {
+				throw new Error(`Error creating location: ${error.message}`);
+			}
+
+			return data;
+		} catch (error) {
+			console.error("Error creating location:", error);
 			throw error;
 		}
 	},
