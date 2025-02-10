@@ -1,36 +1,25 @@
 // LocationsList.js
 
-import React, { useState, useRef, useEffect, memo } from "react";
+import React, { useState, useEffect, memo } from "react";
 import {
 	View,
 	Text,
 	StyleSheet,
 	FlatList,
 	TouchableOpacity,
-	LayoutAnimation,
 	Platform,
 	UIManager,
 } from "react-native";
-import Animated, {
-	useSharedValue,
-	useAnimatedStyle,
-	withTiming,
-	interpolate,
-	Extrapolate,
-} from "react-native-reanimated";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
-/** Enable LayoutAnimation on Android */
+// (Optional) Enable LayoutAnimation on Android if you plan to use simple layout changes.
 if (
 	Platform.OS === "android" &&
 	UIManager.setLayoutAnimationEnabledExperimental
 ) {
 	UIManager.setLayoutAnimationEnabledExperimental(true);
 }
-
-// Define a constant to detect Android for conditional animations
-const isAndroid = Platform.OS === "android";
 
 /** THEME & HELPERS */
 const Colors = {
@@ -53,22 +42,9 @@ const Fonts = {
 	caption: { fontSize: 12, fontWeight: "400" },
 };
 
-// Optional timeAgo helper
-function timeAgo(timestamp) {
-	const now = new Date();
-	const then = new Date(timestamp);
-	const secondsPast = Math.floor((now - then) / 1000);
-	if (secondsPast < 60) return `${secondsPast}s ago`;
-	if (secondsPast < 3600) return `${Math.floor(secondsPast / 60)}m ago`;
-	if (secondsPast < 86400) return `${Math.floor(secondsPast / 3600)}h ago`;
-	return `${Math.floor(secondsPast / 86400)}d ago`;
-}
-
-/** -----------------------------------------------------------------------
- * LocationsList (Reanimated Expand/Collapse)
- * -----------------------------------------------------------------------
- * Renders a list of site -> bin -> device, in a collapsible layout.
- * If `selectable` is true, tapping a device calls `onDeviceSelect(siteId, binId, deviceId)`.
+/**
+ * LocationsList renders a list of sites. Each site can contain bins, and each bin can contain devices.
+ * If `selectable` is true, tapping a device calls onDeviceSelect(siteId, binId, deviceId).
  */
 export function LocationsList({
 	data,
@@ -76,7 +52,6 @@ export function LocationsList({
 	selectedDevice = undefined,
 	onDeviceSelect,
 }) {
-	// 1) Early return if no data
 	if (!data || data.length === 0) {
 		return (
 			<View style={styles.noDataContainer}>
@@ -89,60 +64,13 @@ export function LocationsList({
 	const [expandedBins, setExpandedBins] = useState({});
 	const [selectedDeviceInfo, setSelectedDeviceInfo] = useState(null);
 
-	// Banner reanimated values
-	const bannerOpacity = useSharedValue(0);
-	const bannerTranslateY = useSharedValue(-20);
-
-	// -----------------
-	// HEIGHT TRANSITION
-	// -----------------
-	// We add a height animation only if `selectable === true`.
-	// Container starts at 400 (expanded). If a device is selected => 120 (collapsed).
-	const EXPANDED_HEIGHT = 400;
-	const COLLAPSED_HEIGHT = 120;
-	const containerHeight = useSharedValue(0);
-
-	useEffect(() => {
-		if (selectable) {
-			// Initially expanded: on Android, set value directly; otherwise animate instantly.
-			containerHeight.value = isAndroid
-				? EXPANDED_HEIGHT
-				: withTiming(EXPANDED_HEIGHT, { duration: 0 });
-		}
-	}, [selectable]);
-
-	// If a device is selected => collapsed, else expanded
-	useEffect(() => {
-		if (!selectable) return; // no height transition if not selectable
-
-		if (selectedDevice) {
-			containerHeight.value = isAndroid
-				? COLLAPSED_HEIGHT
-				: withTiming(COLLAPSED_HEIGHT, { duration: 300 });
-		} else {
-			containerHeight.value = isAndroid
-				? EXPANDED_HEIGHT
-				: withTiming(EXPANDED_HEIGHT, { duration: 300 });
-		}
-	}, [selectedDevice, selectable]);
-
-	// Create an animated style for the container (only used on non-Android/selectable)
-	const containerAnimatedStyle = useAnimatedStyle(() => {
-		if (!selectable) return {};
-		return {
-			height: containerHeight.value,
-			overflow: "hidden", // hide content beyond container's animated height
-		};
-	});
-
-	// Whenever `selectedDevice` changes, find device details for banner
+	// When a device is selected, find its details for the banner.
 	useEffect(() => {
 		if (selectedDevice) {
-			LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+			// Reset the expanded states.
 			setExpandedSites({});
 			setExpandedBins({});
-
-			// Find device info
+			// Look for the device in the data.
 			const deviceDetails = data
 				.flatMap((site) =>
 					(site.bins || []).map((bin) =>
@@ -158,34 +86,38 @@ export function LocationsList({
 					)
 				)
 				.filter(Boolean)[0];
-
 			setSelectedDeviceInfo(deviceDetails);
-
-			// Animate banner in: on Android, set directly; otherwise, animate.
-			bannerOpacity.value = isAndroid ? 1 : withTiming(1, { duration: 300 });
-			bannerTranslateY.value = isAndroid ? 0 : withTiming(0, { duration: 300 });
 		} else {
-			// Animate banner out: on Android, set directly; otherwise, animate.
 			setSelectedDeviceInfo(null);
-			bannerOpacity.value = isAndroid ? 0 : withTiming(0, { duration: 300 });
-			bannerTranslateY.value = isAndroid
-				? -20
-				: withTiming(-20, { duration: 300 });
 		}
-	}, [selectedDevice, data, bannerOpacity, bannerTranslateY]);
+	}, [selectedDevice, data]);
 
-	// Animated style for banner
-	const bannerAnimatedStyle = useAnimatedStyle(() => {
-		return {
-			opacity: bannerOpacity.value,
-			transform: [{ translateY: bannerTranslateY.value }],
-		};
-	});
+	const toggleSite = (siteId) => {
+		// Simply toggle the expansion state.
+		setExpandedSites((prev) => ({ ...prev, [siteId]: !prev[siteId] }));
+	};
 
-	/**
-	 * If we are in "selectable" mode AND we have a selected device,
-	 * we hide the entire list to save space, showing only an indicator.
-	 */
+	const toggleBin = (binId) => {
+		setExpandedBins((prev) => ({ ...prev, [binId]: !prev[binId] }));
+	};
+
+	const renderSite = ({ item: site }) => {
+		const expanded = !!expandedSites[site.id];
+		return (
+			<SiteCard
+				site={site}
+				expanded={expanded}
+				toggleExpand={() => toggleSite(site.id)}
+				expandedBins={expandedBins}
+				toggleBin={toggleBin}
+				selectable={selectable}
+				selectedDevice={selectedDevice}
+				onDeviceSelect={onDeviceSelect}
+			/>
+		);
+	};
+
+	// If in selectable mode and a device is selected, show an indicator/banner instead of the list.
 	if (selectable && selectedDeviceInfo) {
 		return (
 			<View style={styles.selectedIndicatorContainer}>
@@ -213,105 +145,49 @@ export function LocationsList({
 		);
 	}
 
-	// Renders the banner if we want it in non-selectable mode or no device is selected
-	const renderSelectedDeviceBanner = () => {
-		if (!selectedDeviceInfo) return null;
-		return (
-			<Animated.View style={[styles.selectedDeviceBanner, bannerAnimatedStyle]}>
-				<MaterialIcons
-					name="check-circle"
-					size={24}
-					color={Colors.primary}
-					style={{ marginRight: 8 }}
-				/>
-				<View style={{ flex: 1 }}>
-					<Text style={[styles.selectedDeviceText, { fontWeight: "600" }]}>
-						{selectedDeviceInfo.device.name}
-					</Text>
-					<Text style={styles.selectedDeviceSubText}>
-						{selectedDeviceInfo.siteName} - {selectedDeviceInfo.binName}
-					</Text>
-				</View>
-				<TouchableOpacity
-					onPress={() => onDeviceSelect?.(null, null, null)}
-					style={styles.deselectButton}
-				>
-					<MaterialIcons name="close" size={20} color={Colors.textMuted} />
-				</TouchableOpacity>
-			</Animated.View>
-		);
-	};
-
-	// Expand/collapse logic
-	const toggleSite = (siteId) => {
-		LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-		setExpandedSites((prev) => ({ ...prev, [siteId]: !prev[siteId] }));
-	};
-
-	const toggleBin = (binId) => {
-		LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-		setExpandedBins((prev) => ({ ...prev, [binId]: !prev[binId] }));
-	};
-
-	// Render site item
-	const renderSite = ({ item: site }) => {
-		const expanded = !!expandedSites[site.id];
-		return (
-			<SiteCard
-				site={site}
-				expanded={expanded}
-				toggleExpand={() => toggleSite(site.id)}
-				expandedBins={expandedBins}
-				toggleBin={toggleBin}
-				selectable={selectable}
-				selectedDevice={selectedDevice}
-				onDeviceSelect={onDeviceSelect}
-			/>
-		);
-	};
-
-	// Determine which container to use:
-	// On Android in selectable mode, use a plain View with fixed height.
-	// Otherwise, use Animated.View with the animated style.
-	const ContainerComponent = isAndroid && selectable ? View : Animated.View;
-	const containerStyle =
-		isAndroid && selectable
-			? [
-					styles.container,
-					selectable && styles.selectableContainer,
-					{ height: selectedDevice ? COLLAPSED_HEIGHT : EXPANDED_HEIGHT },
-				]
-			: [
-					styles.container,
-					selectable && styles.selectableContainer,
-					containerAnimatedStyle,
-				];
-
-	// Show banner (if any) + list
 	return (
-		<ContainerComponent style={containerStyle}>
-			{renderSelectedDeviceBanner()}
+		<View style={styles.container}>
+			{selectedDeviceInfo &&
+				renderSelectedDeviceBanner(selectedDeviceInfo, onDeviceSelect)}
 			<FlatList
 				data={data}
 				keyExtractor={(location) => String(location.id)}
 				renderItem={renderSite}
-				style={selectable && styles.selectableList}
+				scrollEnabled={false}
 				contentContainerStyle={styles.listContainer}
 				ItemSeparatorComponent={() => <View style={styles.separator} />}
-				initialNumToRender={10}
-				maxToRenderPerBatch={10}
-				windowSize={21}
-				removeClippedSubviews
-				scrollEnabled={false}
 			/>
-		</ContainerComponent>
+		</View>
 	);
 }
 
-/** -----------------------------------------------------------------------
- * SiteCard Component
- * -----------------------------------------------------------------------
- */
+function renderSelectedDeviceBanner(selectedDeviceInfo, onDeviceSelect) {
+	return (
+		<View style={styles.selectedDeviceBanner}>
+			<MaterialIcons
+				name="check-circle"
+				size={24}
+				color={Colors.primary}
+				style={{ marginRight: 8 }}
+			/>
+			<View style={{ flex: 1 }}>
+				<Text style={[styles.selectedDeviceText, { fontWeight: "600" }]}>
+					{selectedDeviceInfo.device.name}
+				</Text>
+				<Text style={styles.selectedDeviceSubText}>
+					{selectedDeviceInfo.siteName} - {selectedDeviceInfo.binName}
+				</Text>
+			</View>
+			<TouchableOpacity
+				onPress={() => onDeviceSelect?.(null, null, null)}
+				style={styles.deselectButton}
+			>
+				<MaterialIcons name="close" size={20} color={Colors.textMuted} />
+			</TouchableOpacity>
+		</View>
+	);
+}
+
 const SiteCard = memo(function SiteCard({
 	site,
 	expanded,
@@ -324,53 +200,12 @@ const SiteCard = memo(function SiteCard({
 }) {
 	const hasBins = site.bins && site.bins.length > 0;
 
-	const rotateAnim = useSharedValue(expanded ? 1 : 0);
-	const scaleAnim = useSharedValue(1);
-
-	useEffect(() => {
-		rotateAnim.value = isAndroid
-			? expanded
-				? 1
-				: 0
-			: withTiming(expanded ? 1 : 0, { duration: 200 });
-	}, [expanded]);
-
-	const rotateStyle = useAnimatedStyle(() => {
-		return {
-			transform: [
-				{
-					rotate: `${interpolate(
-						rotateAnim.value,
-						[0, 1],
-						[0, 180],
-						Extrapolate.CLAMP
-					)}deg`,
-				},
-			],
-		};
-	});
-
-	const scaleStyle = useAnimatedStyle(() => {
-		return {
-			transform: [{ scale: scaleAnim.value }],
-		};
-	});
-
-	function onPressIn() {
-		scaleAnim.value = isAndroid ? 0.97 : withTiming(0.97, { duration: 100 });
-	}
-	function onPressOut() {
-		scaleAnim.value = isAndroid ? 1 : withTiming(1, { duration: 100 });
-	}
-
 	return (
-		<Animated.View style={[styles.card, scaleStyle]}>
+		<View style={styles.card}>
 			<TouchableOpacity
 				style={styles.cardHeader}
 				onPress={hasBins ? toggleExpand : undefined}
 				activeOpacity={hasBins ? 0.7 : 1}
-				onPressIn={hasBins ? onPressIn : undefined}
-				onPressOut={hasBins ? onPressOut : undefined}
 			>
 				<View style={styles.cardHeaderLeft}>
 					<MaterialIcons
@@ -382,7 +217,7 @@ const SiteCard = memo(function SiteCard({
 					<View>
 						<Text style={styles.cardTitle}>{site.name}</Text>
 						<Text style={styles.cardSubtitle}>
-							{(site.bins && site.bins.length) || 0} Bin
+							{site.bins ? site.bins.length : 0} Bin
 							{!site.bins || site.bins.length !== 1 ? "s" : ""},{" "}
 							{(site.bins || []).reduce(
 								(acc, b) => acc + (b.devices ? b.devices.length : 0),
@@ -399,16 +234,13 @@ const SiteCard = memo(function SiteCard({
 					</View>
 				</View>
 				{hasBins && (
-					<Animated.View style={rotateStyle}>
-						<MaterialIcons
-							name="expand-more"
-							size={24}
-							color={Colors.primary}
-						/>
-					</Animated.View>
+					<MaterialIcons
+						name={expanded ? "expand-less" : "expand-more"}
+						size={24}
+						color={Colors.primary}
+					/>
 				)}
 			</TouchableOpacity>
-
 			{expanded && hasBins && (
 				<View style={styles.cardContent}>
 					{site.bins.map((bin) => {
@@ -429,20 +261,15 @@ const SiteCard = memo(function SiteCard({
 					})}
 				</View>
 			)}
-
 			{!hasBins && (
 				<View style={{ marginTop: 12 }}>
 					<Text style={styles.noDataText}>No bins for this location.</Text>
 				</View>
 			)}
-		</Animated.View>
+		</View>
 	);
 });
 
-/** -----------------------------------------------------------------------
- * BinCard Component
- * -----------------------------------------------------------------------
- */
 export const BinCard = memo(function BinCard({
 	bin,
 	siteId,
@@ -452,130 +279,14 @@ export const BinCard = memo(function BinCard({
 	selectedDevice,
 	onDeviceSelect,
 }) {
-	const rotateAnim = useSharedValue(expanded ? 1 : 0);
-	const fadeAnim = useSharedValue(expanded ? 1 : 0);
-	const scaleAnim = useSharedValue(1);
-
-	useEffect(() => {
-		rotateAnim.value = isAndroid
-			? expanded
-				? 1
-				: 0
-			: withTiming(expanded ? 1 : 0, { duration: 200 });
-		fadeAnim.value = isAndroid
-			? expanded
-				? 1
-				: 0
-			: withTiming(expanded ? 1 : 0, { duration: 300 });
-	}, [expanded]);
-
-	const rotateStyle = useAnimatedStyle(() => {
-		return {
-			transform: [
-				{
-					rotate: `${interpolate(
-						rotateAnim.value,
-						[0, 1],
-						[0, 180],
-						Extrapolate.CLAMP
-					)}deg`,
-				},
-			],
-		};
-	});
-
-	const fadeStyle = useAnimatedStyle(() => {
-		return {
-			opacity: fadeAnim.value,
-		};
-	});
-
-	const scaleStyle = useAnimatedStyle(() => {
-		return {
-			transform: [{ scale: scaleAnim.value }],
-		};
-	});
-
-	function onPressIn() {
-		scaleAnim.value = isAndroid ? 0.97 : withTiming(0.97, { duration: 100 });
-	}
-	function onPressOut() {
-		scaleAnim.value = isAndroid ? 1 : withTiming(1, { duration: 100 });
-	}
-
 	const hasDevices = bin.devices && bin.devices.length > 0;
 
-	if (Platform.OS === "android") {
-		return (
-			<View style={styles.binCard}>
-				<TouchableOpacity
-					style={styles.binHeader}
-					onPress={hasDevices ? toggleExpand : undefined}
-					activeOpacity={hasDevices ? 0.7 : 1}
-					accessibilityLabel={`Toggle ${bin.name} Devices`}
-				>
-					<View style={styles.binHeaderLeft}>
-						<MaterialIcons
-							name="storage"
-							size={24}
-							color={Colors.primary}
-							style={styles.binIcon}
-						/>
-						<View>
-							<Text style={styles.binTitle}>{bin.name || "Unnamed Bin"}</Text>
-							<Text style={styles.binSubtitle}>
-								{bin.devices?.length ?? 0} Device
-								{(bin.devices?.length ?? 0) !== 1 ? "s" : ""}
-							</Text>
-						</View>
-					</View>
-					{hasDevices && (
-						<MaterialIcons
-							name={expanded ? "expand-less" : "expand-more"}
-							size={24}
-							color={Colors.primary}
-							accessibilityLabel={
-								expanded ? "Collapse Devices" : "Expand Devices"
-							}
-						/>
-					)}
-				</TouchableOpacity>
-
-				{expanded && hasDevices && (
-					<View style={styles.deviceList}>
-						{bin.devices
-							.filter((d) => d && d.id)
-							.map((device) => (
-								<DeviceItem
-									key={String(device.id)}
-									device={device}
-									siteId={siteId}
-									binId={bin.id}
-									selectable={selectable}
-									selectedDevice={selectedDevice}
-									onDeviceSelect={onDeviceSelect}
-								/>
-							))}
-					</View>
-				)}
-
-				{!hasDevices && (
-					<View style={{ marginTop: 8 }}>
-						<Text style={styles.noDataText}>No devices in this bin.</Text>
-					</View>
-				)}
-			</View>
-		);
-	}
-
 	return (
-		<Animated.View style={[styles.binCard, scaleStyle]}>
+		<View style={styles.binCard}>
 			<TouchableOpacity
 				style={styles.binHeader}
 				onPress={hasDevices ? toggleExpand : undefined}
 				activeOpacity={hasDevices ? 0.7 : 1}
-				onPressIn={hasDevices ? onPressIn : undefined}
-				onPressOut={hasDevices ? onPressOut : undefined}
 			>
 				<View style={styles.binHeaderLeft}>
 					<MaterialIcons
@@ -585,26 +296,23 @@ export const BinCard = memo(function BinCard({
 						style={styles.binIcon}
 					/>
 					<View>
-						<Text style={styles.binTitle}>{bin.name}</Text>
+						<Text style={styles.binTitle}>{bin.name || "Unnamed Bin"}</Text>
 						<Text style={styles.binSubtitle}>
-							{bin.devices?.length ?? 0} Device
-							{(bin.devices?.length ?? 0) !== 1 ? "s" : ""}
+							{bin.devices ? bin.devices.length : 0} Device
+							{(bin.devices ? bin.devices.length : 0) !== 1 ? "s" : ""}
 						</Text>
 					</View>
 				</View>
 				{hasDevices && (
-					<Animated.View style={rotateStyle}>
-						<MaterialIcons
-							name="expand-more"
-							size={24}
-							color={Colors.primary}
-						/>
-					</Animated.View>
+					<MaterialIcons
+						name={expanded ? "expand-less" : "expand-more"}
+						size={24}
+						color={Colors.primary}
+					/>
 				)}
 			</TouchableOpacity>
-
 			{expanded && hasDevices && (
-				<Animated.View style={[styles.deviceList, fadeStyle]}>
+				<View style={styles.deviceList}>
 					{bin.devices
 						.filter((d) => d && d.id)
 						.map((device) => (
@@ -618,22 +326,17 @@ export const BinCard = memo(function BinCard({
 								onDeviceSelect={onDeviceSelect}
 							/>
 						))}
-				</Animated.View>
+				</View>
 			)}
-
 			{!hasDevices && (
 				<View style={{ marginTop: 8 }}>
 					<Text style={styles.noDataText}>No devices in this bin.</Text>
 				</View>
 			)}
-		</Animated.View>
+		</View>
 	);
 });
 
-/** -----------------------------------------------------------------------
- * DeviceItem Component
- * -----------------------------------------------------------------------
- */
 const DeviceItem = memo(function DeviceItem({
 	device,
 	siteId,
@@ -645,38 +348,6 @@ const DeviceItem = memo(function DeviceItem({
 	const router = useRouter();
 	const isSelected = selectedDevice === device.id;
 
-	// Reanimated shared values
-	const opacity = useSharedValue(1);
-	const scale = useSharedValue(1);
-	const bgColor = useSharedValue(0); // 0 = unselected, 1 = selected
-
-	useEffect(() => {
-		if (isSelected) {
-			opacity.value = withTiming(0.8, { duration: 300 });
-			scale.value = withTiming(0.95, { duration: 300 });
-			bgColor.value = withTiming(1, { duration: 300 });
-		} else {
-			opacity.value = withTiming(1, { duration: 300 });
-			scale.value = withTiming(1, { duration: 300 });
-			bgColor.value = withTiming(0, { duration: 300 });
-		}
-	}, [isSelected]);
-
-	// Animated styles
-	const animatedStyle = useAnimatedStyle(() => {
-		const backgroundColor = interpolate(
-			bgColor.value,
-			[0, 1],
-			[Colors.cardBackground, Colors.selectedBackground],
-			Extrapolate.CLAMP
-		);
-		return {
-			opacity: opacity.value,
-			transform: [{ scale: scale.value }],
-			backgroundColor,
-		};
-	});
-
 	const handlePress = () => {
 		if (selectable && onDeviceSelect) {
 			onDeviceSelect(siteId, binId, device.id);
@@ -685,7 +356,7 @@ const DeviceItem = memo(function DeviceItem({
 		}
 	};
 
-	function renderDeviceIcon() {
+	const renderDeviceIcon = () => {
 		if (device.type === "relay" || device.type === "control-box") {
 			return device.isOnline ? (
 				<MaterialIcons name="power" size={24} color={Colors.powerOn} />
@@ -698,9 +369,9 @@ const DeviceItem = memo(function DeviceItem({
 			);
 		}
 		return null;
-	}
+	};
 
-	function renderMetrics() {
+	const renderMetrics = () => {
 		if (device.type === "sensor") {
 			return (
 				<View style={styles.metricsContainerInline}>
@@ -730,18 +401,18 @@ const DeviceItem = memo(function DeviceItem({
 			);
 		}
 		return null;
-	}
+	};
 
-	function renderStatusIcon() {
+	const renderStatusIcon = () => {
 		return device.isOnline ? (
 			<MaterialIcons name="wifi" size={20} color={Colors.powerOn} />
 		) : (
 			<MaterialIcons name="wifi-off" size={20} color={Colors.powerOff} />
 		);
-	}
+	};
 
 	return (
-		<Animated.View style={[styles.deviceContainer, animatedStyle]}>
+		<View style={styles.deviceContainer}>
 			<TouchableOpacity
 				onPress={handlePress}
 				activeOpacity={0.7}
@@ -780,23 +451,17 @@ const DeviceItem = memo(function DeviceItem({
 					/>
 				)}
 			</TouchableOpacity>
-		</Animated.View>
+		</View>
 	);
 });
 
-/** -----------------------------------------------------------------------
- * Styles
- * -----------------------------------------------------------------------
- */
 const styles = StyleSheet.create({
 	container: {
 		width: "100%",
 	},
-	// We keep maxHeight: 400 for selectable mode, but we also animate the height.
 	selectableContainer: {
-		maxHeight: 400, // keeps the scroll as you had
+		maxHeight: 400,
 	},
-
 	selectedIndicatorContainer: {
 		flexDirection: "row",
 		alignItems: "center",
@@ -819,7 +484,6 @@ const styles = StyleSheet.create({
 		color: Colors.textMuted,
 		marginTop: 2,
 	},
-
 	selectedDeviceBanner: {
 		flexDirection: "row",
 		alignItems: "center",
@@ -846,7 +510,6 @@ const styles = StyleSheet.create({
 	deselectButton: {
 		padding: 4,
 	},
-
 	listContainer: {
 		padding: 0,
 	},
@@ -862,7 +525,6 @@ const styles = StyleSheet.create({
 		fontSize: Fonts.body.fontSize,
 		color: Colors.textMuted,
 	},
-
 	card: {
 		backgroundColor: Colors.cardBackground,
 		borderRadius: 12,
@@ -899,7 +561,6 @@ const styles = StyleSheet.create({
 	cardContent: {
 		marginTop: 12,
 	},
-
 	binCard: {
 		marginTop: 12,
 		paddingLeft: 12,
@@ -932,7 +593,6 @@ const styles = StyleSheet.create({
 		marginLeft: 16,
 		marginTop: 6,
 	},
-
 	deviceContainer: {
 		marginBottom: 12,
 	},
@@ -981,3 +641,5 @@ const styles = StyleSheet.create({
 		marginLeft: 4,
 	},
 });
+
+export default LocationsList;

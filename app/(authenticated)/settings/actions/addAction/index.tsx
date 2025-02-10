@@ -261,6 +261,12 @@ const AddAction = () => {
 	 * TWO-DEVICE COMP: fetch device details for the second device
 	 * ---------------------------------------------------------------- */
 	useEffect(() => {
+		console.log("device 2 use effect");
+		console.log({
+			selectedDevice2Comp,
+			deviceType1,
+			metricsComp,
+		});
 		if (!selectedDevice2Comp) {
 			setSelectedMetricComp(null);
 			return;
@@ -272,6 +278,8 @@ const AddAction = () => {
 				const device = await UserDeviceService.getDevice(selectedDevice2Comp);
 				if (device) {
 					if (deviceType1 && device.device_type !== deviceType1) {
+						console.log("Device type mismatch");
+						console.log({ deviceType1, device });
 						Alert.alert(
 							"Device Type Mismatch",
 							`Device 2 must be the same type as Device 1 (${deviceType1}). Please select a matching device.`
@@ -301,7 +309,7 @@ const AddAction = () => {
 		};
 
 		fetchDevice2();
-	}, [selectedDevice2Comp, deviceType1, metricsComp]);
+	}, [selectedDevice2Comp, deviceType1]);
 
 	const filteredLocationsForDevice2 = useMemo(() => {
 		if (!deviceType1 || !locations) return locations;
@@ -1257,6 +1265,16 @@ const AddAction = () => {
 							data={filteredLocationsForDevice2}
 							selectedDevice={selectedDevice2Comp}
 							onDeviceSelect={(locId, binId, devId) => {
+								if (devId === selectedDevice1Comp) {
+									Alert.alert(
+										"Validation Error",
+										"Device 2 must be different from Device 1."
+									);
+									return;
+								}
+								console.log("Selected Device 2:", devId);
+								console.log("Device Type 2:", getDeviceType(devId));
+								console.log("Device Type 1:", deviceType1);
 								setSelectedLocation2Comp(locId);
 								setSelectedBin2Comp(binId);
 								setSelectedDevice2Comp(devId);
@@ -1663,6 +1681,7 @@ const AddAction = () => {
 											data={locations}
 											selectedDevice={action.device_id}
 											onDeviceSelect={(locId, binId, devId) => {
+												console.log("Device Selected:", locId, binId, devId);
 												handleUpdateAction(index, "location_id", locId);
 												handleUpdateAction(index, "bin_id", binId);
 												handleUpdateAction(index, "device_id", devId);
