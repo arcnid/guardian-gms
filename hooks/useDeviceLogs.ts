@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { UserDeviceService } from "@/services/userDevice/service";
+import { metricService } from "@/services/metric/service"; // Import the metricService
 
 // Define LogEntry interface
 interface LogEntry {
 	id: number;
 	created_at: string;
-	temp_sensor_reading: number;
+	temp_sensor_reading: number; // this value is originally in Celsius
 	humid_sensor_reading: number;
 }
 
@@ -91,13 +92,26 @@ export function useDeviceLogs(deviceId: string, timeframe: string) {
 				throw new Error("Invalid data format received from API.");
 			}
 
-			// Cache the response
-			logsCache[cacheKey] = response;
+			// Convert temperature readings from Celsius to Fahrenheit
+			const convertedData = response.data.map((entry) => ({
+				...entry,
+				temp_sensor_reading: metricService.getCtoF(entry.temp_sensor_reading),
+			}));
 
-			// Update state with fetched data
-			setFromDate(response.fromDate);
-			setToDate(response.toDate);
-			setData(response.data);
+			// Prepare the converted response
+			const convertedResponse: DeviceLogsResponse = {
+				fromDate: response.fromDate,
+				toDate: response.toDate,
+				data: convertedData,
+			};
+
+			// Cache the converted response
+			logsCache[cacheKey] = convertedResponse;
+
+			// Update state with the converted data
+			setFromDate(convertedResponse.fromDate);
+			setToDate(convertedResponse.toDate);
+			setData(convertedResponse.data);
 		} catch (err) {
 			console.error("Error fetching device logs:", err);
 			setError("Failed to load data. Please try again.");

@@ -5,7 +5,13 @@ const supabase = getSupabaseClient();
 
 export const AuthService = {
 	signUp: async (email, password) => {
-		const { data, error } = await supabase.auth.signUp({ email, password });
+		console.log("tring to sign up");
+		const { data, error } = await supabase.auth.signUp({
+			email,
+			password,
+		});
+
+		console.log("data", data);
 		if (error) throw error;
 		return data.user;
 	},

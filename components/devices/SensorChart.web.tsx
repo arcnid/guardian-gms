@@ -60,7 +60,7 @@ export const SensorChart = ({ deviceId }: { deviceId: string }) => {
 		),
 		datasets: [
 			{
-				label: activeTab === "temp" ? "Temperature (C)" : "Humidity (%)",
+				label: activeTab === "temp" ? "Temperature (°F)" : "Humidity (%)",
 				data: graphData.map((point) => point.value),
 				borderColor:
 					activeTab === "temp"
@@ -112,7 +112,7 @@ export const SensorChart = ({ deviceId }: { deviceId: string }) => {
 			y: {
 				title: {
 					display: true,
-					text: activeTab === "temp" ? "Temperature (C)" : "Humidity (%)",
+					text: activeTab === "temp" ? "Temperature (°F)" : "Humidity (%)",
 					color: "#888",
 					font: {
 						size: 14,
@@ -152,7 +152,7 @@ export const SensorChart = ({ deviceId }: { deviceId: string }) => {
 				<View>
 					<Text style={styles.chartTitle}>
 						{activeTab === "temp"
-							? "Temperature Over Time (C)"
+							? "Temperature Over Time (°F)"
 							: "Humidity Over Time (%)"}
 					</Text>
 				</View>

@@ -18,10 +18,14 @@ export interface GraphPoint {
 	date: Date;
 }
 
+// Updated chartConfig with the darker green color (#71A12F)
 const chartConfig = {
 	backgroundGradientFrom: "#fff", // Set to white
 	backgroundGradientTo: "#fff", // Set to white
-	color: (opacity = 1) => `rgba(26, 255, 146, ${opacity})`,
+	// Use the darker green for the line
+	color: (opacity = 1) => `rgba(113, 161, 47, ${opacity})`,
+	// Use the darker green for the labels and axes
+	labelColor: (opacity = 1) => `rgba(113, 161, 47, ${opacity})`,
 	strokeWidth: 2,
 	barPercentage: 0.5,
 	useShadowColorFromDataset: false,
@@ -108,7 +112,7 @@ export const SensorChart = ({ deviceId }: { deviceId: string }) => {
 				<View>
 					<Text style={styles.title}>
 						{activeTab === "temp"
-							? "Temperature Over Time (°C)"
+							? "Temperature Over Time (°F)"
 							: "Humidity Over Time (%)"}
 					</Text>
 				</View>

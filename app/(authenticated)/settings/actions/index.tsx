@@ -12,12 +12,13 @@ import {
 	ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MaterialIcons } from "@expo/vector-icons"; // Removed FontAwesome as it's no longer used
+import { MaterialIcons } from "@expo/vector-icons";
 import BackButton from "../../../../components/BackButton";
 import { AuthContext } from "@/contexts/AuthContext";
 import { useRouter } from "expo-router";
 import { ActionService } from "@/services/actions/service";
 import { UserDeviceService } from "@/services/userDevice/service"; // Ensure correct path
+import { metricService } from "@/services/metric/service"; // Import the metric conversion service
 
 // Icon and label mappings for triggers
 const triggerTypeMap = {
@@ -66,6 +67,34 @@ const ScheduledActions = () => {
 	const [refreshing, setRefreshing] = useState(false);
 	const [deviceMap, setDeviceMap] = useState({}); // Mapping of deviceId to deviceName
 	const router = useRouter();
+
+	/**
+	 * Helper function that returns the display value for a given metric.
+	 * If the metric is temperature (in Celsius), it converts it to Fahrenheit.
+	 * For temperature differences (used in "two_device_diff"), it multiplies by 9/5.
+	 *
+	 * @param {string} metric - The metric name (e.g., "temp" or "temperature").
+	 * @param {number|string} value - The numeric value coming from the backend.
+	 * @param {boolean} [isDifference=false] - Whether the value is a difference.
+	 * @returns {string|number} - The converted value as a string with the °F unit or the original value.
+	 */
+	const getDisplayValue = (metric, value, isDifference = false) => {
+		const numericValue = Number(value);
+		if (isNaN(numericValue)) {
+			return value;
+		}
+		// Check if the metric indicates temperature.
+		if (["temp", "temperature"].includes(metric.toLowerCase())) {
+			if (isDifference) {
+				// For a temperature difference, only scale by 9/5 (no offset)
+				return ((numericValue * 9) / 5).toFixed(1) + "°F";
+			} else {
+				// For absolute temperature, use the provided conversion function.
+				return metricService.getCtoF(numericValue).toFixed(1) + "°F";
+			}
+		}
+		return value;
+	};
 
 	/**
 	 * Fetches device names and returns a mapping of deviceId to deviceName.
@@ -260,15 +289,11 @@ const ScheduledActions = () => {
 						Every {trigger.days_of_week.join(", ")} at {trigger.common_time}
 					</Text>
 				);
-			case "single_device":
+			case "single_device": {
 				// Ensure fallback to "Unknown Device" if deviceName is not found
 				const deviceName = deviceMap[trigger.device_id] || "Unknown Device";
 				const conditionSymbol = conditionToSymbol(trigger.condition);
-
-				// Determine if operator should be displayed
 				const operatorText = operatorToSymbol(trigger.conditionOperator);
-
-				console.log(`Trigger`, trigger);
 
 				return (
 					<View style={styles.expressionContainer}>
@@ -279,36 +304,35 @@ const ScheduledActions = () => {
 						)}
 						<Text style={styles.triggerDetails}>
 							When: {deviceName} {trigger.metric} {conditionSymbol}{" "}
-							{trigger.value}
+							{getDisplayValue(trigger.metric, trigger.value)}
 						</Text>
 					</View>
 				);
-			case "two_device_diff":
+			}
+			case "two_device_diff": {
 				const device1Name =
-					deviceMap[trigger.device1?.device_id] || "Unknown Device"; // Updated
+					deviceMap[trigger.device1?.device_id] || "Unknown Device";
 				const device2Name =
-					deviceMap[trigger.device2?.device_id] || "Unknown Device"; // Updated
+					deviceMap[trigger.device2?.device_id] || "Unknown Device";
 				const diffConditionSymbol = conditionToSymbol(trigger.condition);
 				const diffOperatorText =
 					trigger.conditionOperator && index < total - 1
 						? operatorToSymbol(trigger.conditionOperator)
 						: null;
 
-				console.log(
-					`Trigger ${index + 1}: ${device1Name} vs ${device2Name} - ${trigger.metric} difference ${diffConditionSymbol} ${trigger.value}${diffOperatorText ? " " + diffOperatorText : ""}`
-				);
-
 				return (
 					<View style={styles.expressionContainer}>
-						<View style={styles.operatorBadge}>
-							<Text style={styles.operatorBadgeText}>
-								{operatorToSymbol(trigger.conditionOperator)}
-							</Text>
-						</View>
-
+						{diffOperatorText && (
+							<View style={styles.operatorBadge}>
+								<Text style={styles.operatorBadgeText}>
+									{operatorToSymbol(trigger.conditionOperator)}
+								</Text>
+							</View>
+						)}
 						<Text style={styles.triggerDetails}>
 							When: {device1Name} vs {device2Name} - {trigger.metric} difference{" "}
-							{diffConditionSymbol} {trigger.value}
+							{diffConditionSymbol}{" "}
+							{getDisplayValue(trigger.metric, trigger.value, true)}
 						</Text>
 						{diffOperatorText && (
 							<View style={styles.operatorBadge}>
@@ -317,6 +341,7 @@ const ScheduledActions = () => {
 						)}
 					</View>
 				);
+			}
 			default:
 				return <Text style={styles.triggerDetails}>Unknown trigger type</Text>;
 		}

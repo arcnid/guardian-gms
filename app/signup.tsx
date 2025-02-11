@@ -32,12 +32,17 @@ const SignupScreen = () => {
 			return;
 		}
 
+		console.log("Signing up...");
+		console.log({ email, password });
+
 		setLoading(true);
 
 		try {
 			await AuthService.signUp(email, password);
 
 			Alert.alert("Success", "Account created successfully!");
+
+			console.log("Signup successful");
 
 			// Redirect to login or dashboard
 			setTimeout(() => {
@@ -49,6 +54,8 @@ const SignupScreen = () => {
 				"Signup Failed",
 				error.message || "An error occurred during signup."
 			);
+
+			console.log("Signup failed");
 		} finally {
 			setLoading(false);
 		}
@@ -151,18 +158,13 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 		alignItems: "center",
 		padding: 10, // Reduced padding
-		backgroundColor: "#F5F5F5", // Light grey background
+		backgroundColor: "#fff", // Light grey background
 	},
 	card: {
 		width: "90%",
 		padding: 20,
 		backgroundColor: "#fff",
 		borderRadius: 10,
-		elevation: 3,
-		shadowColor: "#000",
-		shadowOffset: { width: 0, height: 2 },
-		shadowOpacity: 0.2,
-		shadowRadius: 4,
 	},
 	header: {
 		alignItems: "center",

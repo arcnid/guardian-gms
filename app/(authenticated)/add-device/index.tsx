@@ -48,6 +48,8 @@ const AddDeviceScreen = () => {
 	const [deviceType, setDeviceType] = useState("");
 	const [hasConnected, setHasConnected] = useState(false);
 
+	console.log("device id", deviceId);
+
 	useFocusEffect(
 		React.useCallback(() => {
 			// Reset all state variables to initial values

@@ -26,6 +26,7 @@ import { Dropdown } from "react-native-element-dropdown";
 import { locationService } from "@/services/locations/service";
 import { LocationsList } from "@/components/locations/Locations";
 import { UserDeviceService } from "@/services/userDevice/service";
+import { metricService } from "@/services/metric/service";
 
 // Import react-time-picker only for web
 let TimePickerWeb = null;
@@ -491,6 +492,22 @@ const AddAction = () => {
 						conditionOperator: triggers.length === 0 ? null : pendingOperator,
 					};
 				} else {
+					let finalValue;
+					if (selectedMetric === "temp") {
+						if (selectedCondition === "between") {
+							finalValue = [
+								metricService.getFtoC(parseFloat(conditionValue)),
+								metricService.getFtoC(parseFloat(secondaryConditionValue)),
+							];
+						} else {
+							finalValue = metricService.getFtoC(parseFloat(conditionValue));
+						}
+					} else {
+						finalValue =
+							selectedCondition === "between"
+								? [conditionValue, secondaryConditionValue]
+								: conditionValue;
+					}
 					trigger = {
 						type: "single_device",
 						location_id: selectedLocation,
@@ -499,10 +516,7 @@ const AddAction = () => {
 						metric: selectedMetric,
 						metricLabel,
 						condition: selectedCondition,
-						value:
-							selectedCondition === "between"
-								? [conditionValue, secondaryConditionValue]
-								: conditionValue,
+						value: finalValue,
 						conditionOperator: triggers.length === 0 ? null : pendingOperator,
 					};
 				}
@@ -530,6 +544,22 @@ const AddAction = () => {
 						conditionOperator: triggers.length === 0 ? null : pendingOperator,
 					};
 				} else {
+					let finalValue;
+					if (selectedMetricComp === "temp") {
+						if (differenceCondition === "between") {
+							finalValue = [
+								metricService.getFtoC(parseFloat(differenceValue)),
+								metricService.getFtoC(parseFloat(differenceValue2)),
+							];
+						} else {
+							finalValue = metricService.getFtoC(parseFloat(differenceValue));
+						}
+					} else {
+						finalValue =
+							differenceCondition === "between"
+								? [differenceValue, differenceValue2]
+								: differenceValue;
+					}
 					trigger = {
 						type: "two_device_diff",
 						metric: selectedMetricComp,
@@ -545,10 +575,7 @@ const AddAction = () => {
 							device_id: selectedDevice2Comp,
 						},
 						condition: differenceCondition,
-						value:
-							differenceCondition === "between"
-								? [differenceValue, differenceValue2]
-								: differenceValue,
+						value: finalValue,
 						conditionOperator: triggers.length === 0 ? null : pendingOperator,
 					};
 				}
@@ -808,11 +835,26 @@ const AddAction = () => {
 			setSelectedMetric(trigger.metric);
 			setSelectedCondition(trigger.condition);
 			if (trigger.metric !== "powerState") {
-				if (trigger.condition === "between") {
-					setConditionValue(trigger.value[0]);
-					setSecondaryConditionValue(trigger.value[1]);
+				if (trigger.metric === "temp") {
+					if (trigger.condition === "between") {
+						setConditionValue(
+							String(metricService.getCtoF(Number(trigger.value[0])))
+						);
+						setSecondaryConditionValue(
+							String(metricService.getCtoF(Number(trigger.value[1])))
+						);
+					} else {
+						setConditionValue(
+							String(metricService.getCtoF(Number(trigger.value)))
+						);
+					}
 				} else {
-					setConditionValue(trigger.value);
+					if (trigger.condition === "between") {
+						setConditionValue(trigger.value[0]);
+						setSecondaryConditionValue(trigger.value[1]);
+					} else {
+						setConditionValue(trigger.value);
+					}
 				}
 			}
 		} else if (trigger.type === "two_device_diff") {
@@ -826,11 +868,26 @@ const AddAction = () => {
 			setSelectedDevice2Comp(trigger.device2.device_id);
 			setDifferenceCondition(trigger.condition);
 			if (trigger.metric !== "powerState") {
-				if (trigger.condition === "between") {
-					setDifferenceValue(trigger.value[0]);
-					setDifferenceValue2(trigger.value[1]);
+				if (trigger.metric === "temp") {
+					if (trigger.condition === "between") {
+						setDifferenceValue(
+							String(metricService.getCtoF(Number(trigger.value[0])))
+						);
+						setDifferenceValue2(
+							String(metricService.getCtoF(Number(trigger.value[1])))
+						);
+					} else {
+						setDifferenceValue(
+							String(metricService.getCtoF(Number(trigger.value)))
+						);
+					}
 				} else {
-					setDifferenceValue(trigger.value);
+					if (trigger.condition === "between") {
+						setDifferenceValue(trigger.value[0]);
+						setDifferenceValue2(trigger.value[1]);
+					} else {
+						setDifferenceValue(trigger.value);
+					}
 				}
 			}
 		}
@@ -1126,8 +1183,8 @@ const AddAction = () => {
 							<>
 								<Text style={styles.label}>
 									{selectedCondition === "between"
-										? "Minimum Value"
-										: "Target Value"}
+										? `Minimum Value${selectedMetric === "temp" ? " (°F)" : ""}`
+										: `Target Value${selectedMetric === "temp" ? " (°F)" : ""}`}
 								</Text>
 								<TextInput
 									style={[
@@ -1139,15 +1196,24 @@ const AddAction = () => {
 									onChangeText={setConditionValue}
 									placeholder={
 										selectedCondition === "between"
-											? "Enter Minimum Value"
-											: "Enter Value"
+											? `Enter Minimum Value${selectedMetric === "temp" ? " (°F)" : ""}`
+											: `Enter Value${selectedMetric === "temp" ? " (°F)" : ""}`
 									}
 									autoCapitalize="none"
 									placeholderTextColor="#888"
 								/>
+								{selectedMetric === "temp" && conditionValue && (
+									<Text style={styles.convertedText}>
+										{`Equivalent in Celsius: ${metricService
+											.getFtoC(parseFloat(conditionValue))
+											.toFixed(1)} °C`}
+									</Text>
+								)}
 								{selectedCondition === "between" && (
 									<>
-										<Text style={styles.label}>Maximum Value</Text>
+										<Text style={styles.label}>
+											{`Maximum Value${selectedMetric === "temp" ? " (°F)" : ""}`}
+										</Text>
 										<TextInput
 											style={[
 												styles.input,
@@ -1156,10 +1222,17 @@ const AddAction = () => {
 											keyboardType="numeric"
 											value={secondaryConditionValue}
 											onChangeText={setSecondaryConditionValue}
-											placeholder="Enter Maximum Value"
+											placeholder={`Enter Maximum Value${selectedMetric === "temp" ? " (°F)" : ""}`}
 											autoCapitalize="none"
 											placeholderTextColor="#888"
 										/>
+										{selectedMetric === "temp" && secondaryConditionValue && (
+											<Text style={styles.convertedText}>
+												{`Equivalent in Celsius: ${metricService
+													.getFtoC(parseFloat(secondaryConditionValue))
+													.toFixed(1)} °C`}
+											</Text>
+										)}
 									</>
 								)}
 							</>
@@ -1338,8 +1411,8 @@ const AddAction = () => {
 											<>
 												<Text style={styles.label}>
 													{differenceCondition === "between"
-														? "Min Difference"
-														: "Difference Value"}
+														? `Min Difference${selectedMetricComp === "temp" ? " (°F)" : ""}`
+														: `Difference Value${selectedMetricComp === "temp" ? " (°F)" : ""}`}
 												</Text>
 												<TextInput
 													style={[
@@ -1351,15 +1424,24 @@ const AddAction = () => {
 													onChangeText={setDifferenceValue}
 													placeholder={
 														differenceCondition === "between"
-															? "Enter Minimum Difference"
-															: "Enter Difference Value"
+															? `Enter Minimum Difference${selectedMetricComp === "temp" ? " (°F)" : ""}`
+															: `Enter Difference Value${selectedMetricComp === "temp" ? " (°F)" : ""}`
 													}
 													autoCapitalize="none"
 													placeholderTextColor="#888"
 												/>
+												{selectedMetricComp === "temp" && differenceValue && (
+													<Text style={styles.convertedText}>
+														{`Equivalent in Celsius: ${metricService
+															.getFtoC(parseFloat(differenceValue))
+															.toFixed(1)} °C`}
+													</Text>
+												)}
 												{differenceCondition === "between" && (
 													<>
-														<Text style={styles.label}>Max Difference</Text>
+														<Text style={styles.label}>
+															{`Max Difference${selectedMetricComp === "temp" ? " (°F)" : ""}`}
+														</Text>
 														<TextInput
 															style={[
 																styles.input,
@@ -1368,10 +1450,18 @@ const AddAction = () => {
 															keyboardType="numeric"
 															value={differenceValue2}
 															onChangeText={setDifferenceValue2}
-															placeholder="Enter Maximum Difference"
+															placeholder={`Enter Maximum Difference${selectedMetricComp === "temp" ? " (°F)" : ""}`}
 															autoCapitalize="none"
 															placeholderTextColor="#888"
 														/>
+														{selectedMetricComp === "temp" &&
+															differenceValue2 && (
+																<Text style={styles.convertedText}>
+																	{`Equivalent in Celsius: ${metricService
+																		.getFtoC(parseFloat(differenceValue2))
+																		.toFixed(1)} °C`}
+																</Text>
+															)}
 													</>
 												)}
 											</>
@@ -1493,13 +1583,17 @@ const AddAction = () => {
 										icon="compare"
 										label="Condition"
 										value={
-											trigger.metric === "powerState"
-												? trigger.value === true
-													? "Is On"
-													: "Is Off"
-												: trigger.condition === "between"
-													? `${trigger.value[0]} - ${trigger.value[1]}`
-													: trigger.value
+											trigger.metric === "temp"
+												? trigger.condition === "between"
+													? `${trigger.value[0]} °C - ${trigger.value[1]} °C`
+													: `${trigger.value} °C`
+												: trigger.metric === "powerState"
+													? trigger.value === true
+														? "Is On"
+														: "Is Off"
+													: trigger.condition === "between"
+														? `${trigger.value[0]} - ${trigger.value[1]}`
+														: trigger.value
 										}
 									/>
 								</>
@@ -1543,13 +1637,17 @@ const AddAction = () => {
 										icon="rule"
 										label="Difference Condition"
 										value={
-											trigger.metric === "powerState"
-												? trigger.value === true
-													? "Difference Is On"
-													: "Difference Is Off"
-												: trigger.condition === "between"
-													? `${trigger.value[0]} - ${trigger.value[1]}`
-													: trigger.value
+											trigger.metric === "temp"
+												? trigger.condition === "between"
+													? `${trigger.value[0]} °C - ${trigger.value[1]} °C`
+													: `${trigger.value} °C`
+												: trigger.metric === "powerState"
+													? trigger.value === true
+														? "Difference Is On"
+														: "Difference Is Off"
+													: trigger.condition === "between"
+														? `${trigger.value[0]} - ${trigger.value[1]}`
+														: trigger.value
 										}
 									/>
 								</>
@@ -2448,6 +2546,12 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 10,
 		fontSize: 16,
 		color: COLORS.textDark,
+	},
+	convertedText: {
+		fontSize: 14,
+		color: COLORS.textLight,
+		marginTop: 4,
+		fontStyle: "italic",
 	},
 });
 

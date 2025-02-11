@@ -1,6 +1,6 @@
 // LocationsList.js
 
-import React, { useState, useEffect, memo } from "react";
+import React, { useState, useEffect, memo, useContext } from "react";
 import {
 	View,
 	Text,
@@ -10,10 +10,13 @@ import {
 	Platform,
 	UIManager,
 	TextInput,
+	Modal,
+	Alert, // <-- For confirmation dialogs
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { binService } from "@/services/bins/service"; // <-- Import your bin service
+import { AuthContext } from "@/contexts/AuthContext"; // <-- Import AuthContext to get userId
 
 // (Optional) Enable LayoutAnimation on Android if you plan to use simple layout changes.
 if (
@@ -27,19 +30,7 @@ if (
  * Metric Service to convert temperatures between Celsius and Fahrenheit.
  */
 const metricService = {
-	/**
-	 * Converts Celsius to Fahrenheit.
-	 *
-	 * @param {number} celsius - The temperature in Celsius.
-	 * @returns {number} The converted temperature in Fahrenheit.
-	 */
 	getCtoF: (celsius) => (celsius * 9) / 5 + 32,
-	/**
-	 * Converts Fahrenheit to Celsius.
-	 *
-	 * @param {number} fahrenheit - The temperature in Fahrenheit.
-	 * @returns {number} The converted temperature in Celsius.
-	 */
 	getFtoC: (fahrenheit) => ((fahrenheit - 32) * 5) / 9,
 };
 
@@ -96,17 +87,19 @@ export function LocationsList({
 			// Look for the device in the data.
 			const deviceDetails = data
 				.flatMap((site) =>
-					(site.bins || []).map((bin) =>
-						bin.devices.find((dev) => dev.id === selectedDevice)
+					(site.bins || []).map((bin) => {
+						const devices = bin?.devices || [];
+						const device = devices.find((dev) => dev.id === selectedDevice);
+						return device
 							? {
 									siteId: site.id,
 									siteName: site.name,
 									binId: bin.id,
 									binName: bin.name,
-									device: bin.devices.find((dev) => dev.id === selectedDevice),
+									device,
 								}
-							: null
-					)
+							: null;
+					})
 				)
 				.filter(Boolean)[0];
 			setSelectedDeviceInfo(deviceDetails);
@@ -116,7 +109,6 @@ export function LocationsList({
 	}, [selectedDevice, data]);
 
 	const toggleSite = (siteId) => {
-		// Simply toggle the expansion state.
 		setExpandedSites((prev) => ({ ...prev, [siteId]: !prev[siteId] }));
 	};
 
@@ -221,21 +213,15 @@ const SiteCard = memo(function SiteCard({
 	selectedDevice,
 	onDeviceSelect,
 }) {
-	// Determine if this site has bins.
 	const hasBins = site.bins && site.bins.length > 0;
-
-	// --- For Regular View Only (not selectable) ---
-	// We'll show a plus button in the header to add bins.
 	const [isAddingBin, setIsAddingBin] = useState(false);
 	const [newBinName, setNewBinName] = useState("");
+	const [refresh, setRefresh] = useState(0);
 
 	const handleAddBin = async () => {
 		if (!newBinName.trim()) return;
 		try {
-			// Call your BinService to add the new bin.
-			const newBin = await BinService.addBin(site.id, newBinName.trim());
-			// Update the site bins. (Note: This example mutates the site object; in a real-world
-			// scenario, you might trigger a refresh or use a callback to update parent state.)
+			const newBin = await binService.createBin(site.id, newBinName.trim());
 			if (site.bins) {
 				site.bins.push(newBin);
 			} else {
@@ -243,8 +229,21 @@ const SiteCard = memo(function SiteCard({
 			}
 			setIsAddingBin(false);
 			setNewBinName("");
+			setRefresh((r) => r + 1);
 		} catch (error) {
 			console.error("Error adding bin:", error);
+		}
+	};
+
+	const handleDeleteBin = async (binId) => {
+		try {
+			await binService.deleteBin(binId);
+			if (site.bins) {
+				site.bins = site.bins.filter((b) => b.id !== binId);
+			}
+			setRefresh((r) => r + 1);
+		} catch (error) {
+			console.error("Error deleting bin:", error);
 		}
 	};
 
@@ -268,12 +267,12 @@ const SiteCard = memo(function SiteCard({
 							{site.bins ? site.bins.length : 0} Bin
 							{!site.bins || site.bins.length !== 1 ? "s" : ""},{" "}
 							{(site.bins || []).reduce(
-								(acc, b) => acc + (b.devices ? b.devices.length : 0),
+								(acc, b) => acc + (b && b.devices ? b.devices.length : 0),
 								0
 							)}{" "}
 							Device
 							{(site.bins || []).reduce(
-								(acc, b) => acc + (b.devices ? b.devices.length : 0),
+								(acc, b) => acc + (b && b.devices ? b.devices.length : 0),
 								0
 							) !== 1
 								? "s"
@@ -281,7 +280,6 @@ const SiteCard = memo(function SiteCard({
 						</Text>
 					</View>
 				</View>
-				{/* In regular view only (selectable===false), render the add (+) button */}
 				<View style={styles.cardHeaderRight}>
 					{!selectable && (
 						<TouchableOpacity
@@ -300,7 +298,6 @@ const SiteCard = memo(function SiteCard({
 					)}
 				</View>
 			</TouchableOpacity>
-			{/* If the location is expanded and has bins, render the bin cards */}
 			{expanded && hasBins && (
 				<View style={styles.cardContent}>
 					{site.bins.map((bin) => {
@@ -316,17 +313,17 @@ const SiteCard = memo(function SiteCard({
 								selectable={selectable}
 								selectedDevice={selectedDevice}
 								onDeviceSelect={onDeviceSelect}
+								onDeleteBin={() => handleDeleteBin(bin.id)}
 							/>
 						);
 					})}
 				</View>
 			)}
-			{!hasBins && (
+			{(!hasBins || site.bins.length === 0) && (
 				<View style={{ marginTop: 12 }}>
 					<Text style={styles.noDataText}>No bins for this location.</Text>
 				</View>
 			)}
-			{/* Render the "Add Bin" form if the user clicked the plus button (only in regular view) */}
 			{!selectable && isAddingBin && (
 				<View style={styles.addBinFormContainer}>
 					<TextInput
@@ -360,62 +357,183 @@ export const BinCard = memo(function BinCard({
 	selectable,
 	selectedDevice,
 	onDeviceSelect,
+	onDeleteBin,
 }) {
-	const hasDevices = bin.devices && bin.devices.length > 0;
+	const hasDevices = bin?.devices && bin?.devices.length > 0;
+	const router = useRouter();
+	const [showAddDeviceModal, setShowAddDeviceModal] = useState(false);
+	const [availableDevices, setAvailableDevices] = useState([]);
+	const { userId } = useContext(AuthContext);
+	const [refresh, setRefresh] = useState(0);
+
+	useEffect(() => {
+		if (userId) {
+			binService
+				.getUserDevicesWithoutABin(userId)
+				.then((devices) => {
+					console.log("Devices without a bin:", devices);
+					setAvailableDevices(devices);
+				})
+				.catch((error) =>
+					console.error("Error fetching devices without a bin:", error)
+				);
+		}
+	}, [userId, refresh]);
+
+	// Updated: Call the bin service to add the device to the bin.
+	const handleAddDeviceToBin = async (device) => {
+		console.log(`Adding device ${device.device_name} to bin ${bin.id}`);
+		try {
+			await binService.addDeviceToBin(device.id, bin.id);
+			// Optionally, update the local bin devices:
+			if (!bin.devices) {
+				bin.devices = [];
+			}
+			bin.devices.push(device);
+			setRefresh((r) => r + 1);
+			setShowAddDeviceModal(false);
+		} catch (error) {
+			console.error("Error adding device to bin:", error);
+		}
+	};
+
+	// Function to remove a device from the bin.
+	const handleRemoveDevice = (deviceId) => {
+		Alert.alert(
+			"Remove Device",
+			"Do you want to remove this device from the bin?",
+			[
+				{ text: "Cancel", style: "cancel" },
+				{
+					text: "Remove",
+					style: "destructive",
+					onPress: async () => {
+						try {
+							await binService.removeDeviceFromBin(bin.id, deviceId);
+							bin.devices = bin.devices.filter((d) => d.id !== deviceId);
+							setRefresh((r) => r + 1);
+						} catch (error) {
+							console.error("Error removing device:", error);
+						}
+					},
+				},
+			],
+			{ cancelable: true }
+		);
+	};
 
 	return (
-		<View style={styles.binCard}>
-			<TouchableOpacity
-				style={styles.binHeader}
-				onPress={hasDevices ? toggleExpand : undefined}
-				activeOpacity={hasDevices ? 0.7 : 1}
-			>
-				<View style={styles.binHeaderLeft}>
-					<MaterialIcons
-						name="storage"
-						size={24}
-						color={Colors.primary}
-						style={styles.binIcon}
-					/>
-					<View>
-						<Text style={styles.binTitle}>{bin.name || "Unnamed Bin"}</Text>
-						<Text style={styles.binSubtitle}>
-							{bin.devices ? bin.devices.length : 0} Device
-							{(bin.devices ? bin.devices.length : 0) !== 1 ? "s" : ""}
-						</Text>
+		<>
+			<View style={styles.binCard}>
+				<View style={styles.binHeader}>
+					<TouchableOpacity
+						style={{ flex: 1 }}
+						onPress={hasDevices ? toggleExpand : undefined}
+						activeOpacity={hasDevices ? 0.7 : 1}
+					>
+						<View style={styles.binHeaderLeft}>
+							<MaterialIcons
+								name="storage"
+								size={24}
+								color={Colors.primary}
+								style={styles.binIcon}
+							/>
+							<View>
+								<Text style={styles.binTitle}>{bin.name || "Unnamed Bin"}</Text>
+								<Text style={styles.binSubtitle}>
+									{bin?.devices ? bin?.devices.length : 0} Device
+									{(bin?.devices ? bin?.devices.length : 0) !== 1 ? "s" : ""}
+								</Text>
+							</View>
+						</View>
+					</TouchableOpacity>
+					<View style={styles.binHeaderActions}>
+						{hasDevices && (
+							<MaterialIcons
+								name={expanded ? "expand-less" : "expand-more"}
+								size={24}
+								color={Colors.primary}
+							/>
+						)}
+						{/* Add Device button */}
+						<TouchableOpacity
+							onPress={() => setShowAddDeviceModal(true)}
+							style={styles.addDeviceButton}
+						>
+							<MaterialIcons name="add" size={24} color={Colors.primary} />
+						</TouchableOpacity>
+						{onDeleteBin && (
+							<TouchableOpacity
+								onPress={onDeleteBin}
+								style={styles.deleteBinButton}
+							>
+								<MaterialIcons name="delete" size={20} color="red" />
+							</TouchableOpacity>
+						)}
 					</View>
 				</View>
-				{hasDevices && (
-					<MaterialIcons
-						name={expanded ? "expand-less" : "expand-more"}
-						size={24}
-						color={Colors.primary}
-					/>
+				{expanded && hasDevices && (
+					<View style={styles.deviceList}>
+						{bin?.devices
+							.filter((d) => d && d.id)
+							.map((device) => (
+								<DeviceItem
+									key={String(device.id)}
+									device={device}
+									siteId={siteId}
+									binId={bin.id}
+									selectable={selectable}
+									selectedDevice={selectedDevice}
+									onDeviceSelect={onDeviceSelect}
+									onRemoveDevice={handleRemoveDevice} // Pass removal callback
+								/>
+							))}
+					</View>
 				)}
-			</TouchableOpacity>
-			{expanded && hasDevices && (
-				<View style={styles.deviceList}>
-					{bin.devices
-						.filter((d) => d && d.id)
-						.map((device) => (
-							<DeviceItem
-								key={String(device.id)}
-								device={device}
-								siteId={siteId}
-								binId={bin.id}
-								selectable={selectable}
-								selectedDevice={selectedDevice}
-								onDeviceSelect={onDeviceSelect}
+				{(!hasDevices || bin.devices.length === 0) && (
+					<View style={{ marginTop: 8 }}>
+						<Text style={styles.noDataText}>No devices in this bin.</Text>
+					</View>
+				)}
+			</View>
+
+			{/* ─── Modal for adding a device, sliding up from the bottom ───────────────── */}
+			<Modal
+				animationType="slide"
+				transparent={true}
+				visible={showAddDeviceModal}
+				onRequestClose={() => setShowAddDeviceModal(false)}
+			>
+				<View style={styles.modalOverlay}>
+					<View style={styles.modalContainer}>
+						<View style={styles.modalHeader}>
+							<Text style={styles.modalTitle}>Add Device</Text>
+							<TouchableOpacity onPress={() => setShowAddDeviceModal(false)}>
+								<MaterialIcons
+									name="close"
+									size={24}
+									color={Colors.textMuted}
+								/>
+							</TouchableOpacity>
+						</View>
+						<View style={styles.modalContent}>
+							<FlatList
+								data={availableDevices}
+								keyExtractor={(item) => item.id.toString()}
+								renderItem={({ item }) => (
+									<TouchableOpacity
+										onPress={() => handleAddDeviceToBin(item)}
+										style={styles.modalItem}
+									>
+										<Text style={styles.modalItemText}>{item.device_name}</Text>
+									</TouchableOpacity>
+								)}
 							/>
-						))}
+						</View>
+					</View>
 				</View>
-			)}
-			{!hasDevices && (
-				<View style={{ marginTop: 8 }}>
-					<Text style={styles.noDataText}>No devices in this bin.</Text>
-				</View>
-			)}
-		</View>
+			</Modal>
+		</>
 	);
 });
 
@@ -426,6 +544,7 @@ const DeviceItem = memo(function DeviceItem({
 	selectable,
 	selectedDevice,
 	onDeviceSelect,
+	onRemoveDevice, // Removal callback
 }) {
 	const router = useRouter();
 	const isSelected = selectedDevice === device.id;
@@ -435,6 +554,25 @@ const DeviceItem = memo(function DeviceItem({
 			onDeviceSelect(siteId, binId, device.id);
 		} else {
 			router.push(`/devices/${device.id}`);
+		}
+	};
+
+	// On long press, prompt for removal.
+	const handleLongPress = () => {
+		if (onRemoveDevice) {
+			Alert.alert(
+				"Remove Device",
+				"Do you want to remove this device from the bin?",
+				[
+					{ text: "Cancel", style: "cancel" },
+					{
+						text: "Remove",
+						style: "destructive",
+						onPress: () => onRemoveDevice(device.id),
+					},
+				],
+				{ cancelable: true }
+			);
 		}
 	};
 
@@ -499,6 +637,7 @@ const DeviceItem = memo(function DeviceItem({
 		<View style={styles.deviceContainer}>
 			<TouchableOpacity
 				onPress={handlePress}
+				onLongPress={handleLongPress} // <-- Added long press for removal prompt
 				activeOpacity={0.7}
 				style={[
 					styles.deviceInnerContainer,
@@ -507,7 +646,9 @@ const DeviceItem = memo(function DeviceItem({
 			>
 				<View style={styles.deviceIconContainer}>{renderDeviceIcon()}</View>
 				<View style={styles.deviceInfo}>
-					<Text style={styles.deviceName}>{device.name}</Text>
+					<Text style={styles.deviceName}>
+						{device.name || device.device_name}
+					</Text>
 					<View style={styles.statusAndMetrics}>
 						{renderStatusIcon()}
 						{renderMetrics()}
@@ -629,7 +770,6 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		alignItems: "center",
 	},
-	// New right-side container for the header that holds the add button and the expand toggle.
 	cardHeaderRight: {
 		flexDirection: "row",
 		alignItems: "center",
@@ -662,6 +802,10 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 	},
 	binHeaderLeft: {
+		flexDirection: "row",
+		alignItems: "center",
+	},
+	binHeaderActions: {
 		flexDirection: "row",
 		alignItems: "center",
 	},
@@ -729,11 +873,9 @@ const styles = StyleSheet.create({
 		color: Colors.textMuted,
 		marginLeft: 4,
 	},
-	// Styles for the add bin button in the site header.
 	addBinButton: {
 		marginRight: 8,
 	},
-	// Styles for the inline add bin form.
 	addBinFormContainer: {
 		flexDirection: "row",
 		alignItems: "center",
@@ -746,6 +888,57 @@ const styles = StyleSheet.create({
 		borderRadius: 4,
 		padding: 8,
 		marginRight: 8,
+	},
+	deleteBinButton: {
+		marginLeft: 8,
+		padding: 4,
+	},
+	// New styles for modal and Add Device button
+	addDeviceButton: {
+		marginLeft: 8,
+	},
+	modalOverlay: {
+		flex: 1,
+		backgroundColor: "rgba(0,0,0,0.5)",
+	},
+	modalContainer: {
+		position: "absolute",
+		bottom: 0,
+		left: 0,
+		right: 0,
+		maxHeight: "80%",
+		backgroundColor: Colors.cardBackground,
+		borderTopLeftRadius: 20,
+		borderTopRightRadius: 20,
+		padding: 20,
+		shadowColor: "#000",
+		shadowOffset: { width: 0, height: -2 },
+		shadowOpacity: 0.3,
+		shadowRadius: 4,
+		elevation: 10,
+	},
+	modalHeader: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+	},
+	modalTitle: {
+		fontSize: Fonts.subHeader.fontSize,
+		fontWeight: Fonts.subHeader.fontWeight,
+		color: Colors.textPrimary,
+	},
+	modalContent: {
+		flex: 1,
+		marginTop: 10,
+	},
+	modalItem: {
+		paddingVertical: 12,
+		borderBottomWidth: 1,
+		borderBottomColor: Colors.iconInactive,
+	},
+	modalItemText: {
+		fontSize: Fonts.body.fontSize,
+		color: Colors.textPrimary,
 	},
 });
 
