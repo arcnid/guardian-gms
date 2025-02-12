@@ -9,6 +9,7 @@ import {
 	ScrollView,
 	ActivityIndicator,
 	RefreshControl,
+	Platform,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -19,6 +20,19 @@ import { RecentSensorData } from "@/components/devices/RecentSensorData";
 import { SensorChart } from "@/components/devices/SensorChart";
 import { RelayControls } from "@/components/devices/RelayControls";
 import { useRouter } from "expo-router";
+import mime from "mime";
+
+// =============================
+// Helper: Determine the MIME type from the file extension.
+// (This fallback is in case you do not want to use mime for some reason.)
+// =============================
+const getMimeType = (uri: string): string => {
+	if (uri.toLowerCase().endsWith(".png")) {
+		return "image/png";
+	}
+	// Default to JPEG.
+	return "image/jpeg";
+};
 
 interface DeviceData {
 	device_id: string;
@@ -36,7 +50,7 @@ interface LogEntry {
 	created_at: string;
 	temp_sensor_reading: number;
 	humid_sensor_reading: number;
-	// Other fields can be added if necessary
+	// Other fields if needed...
 }
 
 const DeviceScreen = () => {
@@ -49,41 +63,39 @@ const DeviceScreen = () => {
 	const [deviceImageUri, setDeviceImageUri] = useState<string | null>(null);
 	const router = useRouter();
 
-	// Image upload state
+	// Image upload state.
 	const [uploadingImage, setUploadingImage] = useState(false);
 
-	// Refresh state
+	// Refresh state.
 	const [refreshing, setRefreshing] = useState(false);
 	const [refreshCounter, setRefreshCounter] = useState(0);
 
+	// Compute relay data (if applicable).
 	const relayData = useMemo(() => {
 		if (logs.length > 0) {
 			console.log(logs);
-			// Assume the most recent log is at index 0.
 			const lastLog = logs[0];
 			const logTime = new Date(lastLog.created_at);
 			const now = new Date();
 			const diffInMs = now.getTime() - logTime.getTime();
-			// If the latest log is less than one minute old, consider the device "Online"
 			const online = diffInMs <= 60000;
-			// Assume the log contains a relay_state field (a boolean or string)
 			let relayState = false;
-
 			if (lastLog.relay_state === "on") {
 				relayState = true;
 			} else if (lastLog.relay_state === "off") {
 				relayState = false;
 			}
-
 			console.log({ online, relayState });
-
 			return { online, relayState };
 		}
-		// If no logs, fallback to defaults (or you could use deviceData.status if appropriate)
 		return { online: false, relayState: false };
 	}, [logs]);
 
-	// Function to handle image selection and upload
+	/**
+	 * Function to handle image selection and upload.
+	 * We use ImagePicker to choose an image, then we fix the URI on Android
+	 * and build a FormData object with the proper MIME type.
+	 */
 	const handleImageUpload = async () => {
 		try {
 			const permissionResult =
@@ -102,15 +114,24 @@ const DeviceScreen = () => {
 
 			if (!result.canceled && result.assets?.length > 0) {
 				const imageUri = result.assets[0].uri;
-				const response = await fetch(imageUri);
-				const imageData = await response.blob();
+				// Correct the URI on Android.
+				const newImageUri =
+					Platform.OS === "android"
+						? "file:///" + imageUri.split("file:/").join("")
+						: imageUri;
+
+				// Build the FormData using the mime package.
+				const formData = new FormData();
+				formData.append("image", {
+					uri: newImageUri,
+					type: mime.getType(newImageUri) || getMimeType(newImageUri),
+					name: newImageUri.split("/").pop() || "photo.jpg",
+				});
 
 				setUploadingImage(true);
 
-				await UserDeviceService.updateDeviceImage(
-					deviceId as string,
-					imageData
-				);
+				// Upload the image. (updateDeviceImage should accept FormData.)
+				await UserDeviceService.updateDeviceImage(deviceId as string, formData);
 
 				const updatedImageUrl = await UserDeviceService.getDeviceImageUrl(
 					deviceId as string
@@ -134,7 +155,6 @@ const DeviceScreen = () => {
 			console.log("Device ID not found");
 			return;
 		}
-
 		try {
 			const res = await UserDeviceService.getDeviceWithLatestLog(
 				deviceId as string
@@ -167,7 +187,6 @@ const DeviceScreen = () => {
 			setLoading(false);
 			return;
 		}
-
 		try {
 			const data = await UserDeviceService.getDevice(deviceId as string);
 			setDeviceData(data);
@@ -193,7 +212,6 @@ const DeviceScreen = () => {
 
 	const getRecentLogs = useCallback(async () => {
 		if (!deviceId) return;
-
 		try {
 			const fetchedLogs = await UserDeviceService.getRecentLogs(
 				deviceId as string
@@ -206,7 +224,7 @@ const DeviceScreen = () => {
 		}
 	}, [deviceId]);
 
-	// New: Refresh handler
+	// Refresh handler.
 	const onRefresh = useCallback(async () => {
 		setRefreshing(true);
 		await Promise.all([getDeviceInfo(), getRecentLogs(), getLatestTempHumid()]);
@@ -226,17 +244,14 @@ const DeviceScreen = () => {
 		getLatestTempHumid();
 	}, [getLatestTempHumid]);
 
-	// Compute the displayed status based on the latest log timestamp.
+	// Compute displayed status based on the latest log timestamp.
 	const displayStatus = useMemo(() => {
 		if (logs.length > 0) {
-			// Assume logs[0] is the most recent
 			const lastLogTime = new Date(logs[0].created_at);
 			const now = new Date();
 			const diffInMs = now.getTime() - lastLogTime.getTime();
-			// If the latest log is less than 1 minute old, display "Online"
 			return diffInMs <= 60000 ? "Online" : "Offline";
 		}
-		// Fallback to deviceData.status if no log is available
 		return deviceData?.status || "Unknown";
 	}, [logs, deviceData]);
 
@@ -351,7 +366,6 @@ const DeviceScreen = () => {
 					>
 						Device Actions
 					</Text>
-
 					<MaterialIcons name="chevron-right" size={24} color="#555" />
 				</TouchableOpacity>
 			</ScrollView>
