@@ -235,11 +235,27 @@ export const UserDeviceService = {
 	updateDeviceImage: async (deviceId: string, imageData: Blob) => {
 		const client = getSupabaseClient();
 		try {
-			// Step 1: Upload the image to the `images` bucket
+			// Define the file name for the device image.
 			const fileName = `device_${deviceId}.jpg`;
 
+			// Attempt to remove the old image (if it exists).
+			// We use an array with the file name because the remove method expects an array.
+			const { data: removeData, error: removeError } = await client.storage
+				.from("Images")
+				.remove([fileName]);
+
+			if (removeError) {
+				// Log a warning but continue—this might occur if the image does not exist.
+				console.warn(
+					`No old image to remove or error removing it: ${removeError.message}`
+				);
+			} else {
+				console.log("Old image removed:", removeData);
+			}
+
+			// Upload the new image with the same file name.
 			const { data: uploadData, error: uploadError } = await client.storage
-				.from("Images") // Your bucket name
+				.from("Images")
 				.upload(fileName, imageData, {
 					cacheControl: "3600",
 					upsert: true,
@@ -250,7 +266,7 @@ export const UserDeviceService = {
 				throw new Error("Image upload failed");
 			}
 
-			// Get the public URL of the uploaded image
+			// Get the public URL of the newly uploaded image.
 			const { data: publicUrlData, error: publicUrlError } = client.storage
 				.from("Images")
 				.getPublicUrl(fileName);
@@ -262,7 +278,7 @@ export const UserDeviceService = {
 
 			const imageUrl = publicUrlData.publicUrl;
 
-			// Step 2: Check if the device profile exists
+			// Check if a device profile exists for this device.
 			const { data: profileData, error: profileError } = await client
 				.from("deviceprofiles")
 				.select("*")
@@ -270,16 +286,14 @@ export const UserDeviceService = {
 				.single();
 
 			if (profileError && profileError.code !== "PGRST116") {
-				// Code "PGRST116" means no rows found; handle other errors
+				// PGRST116 typically means no rows were found; other errors should be handled.
 				console.error("Error checking device profile:", profileError.message);
 				throw new Error("Error checking device profile");
 			}
 
-			console.log("no rows found");
-
-			// Step 3: Update or Insert the device profile record
+			// Update or insert the device profile record with the new image URL.
 			if (profileData) {
-				// Profile exists, update the `image_url` field
+				// Profile exists; update the `image_url` field.
 				const { error: updateError } = await client
 					.from("deviceprofiles")
 					.update({ image_url: imageUrl })
@@ -290,8 +304,7 @@ export const UserDeviceService = {
 					throw new Error("Error updating device profile");
 				}
 			} else {
-				console.log(deviceId);
-				// Profile doesn't exist, create a new record
+				// No profile exists; create a new record.
 				const { error: insertError } = await client
 					.from("deviceprofiles")
 					.insert({
@@ -308,7 +321,7 @@ export const UserDeviceService = {
 				}
 			}
 
-			return imageUrl; // Return the uploaded image URL
+			return imageUrl; // Return the URL of the newly uploaded image.
 		} catch (err) {
 			console.error("Error in updateDeviceImage:", err);
 			throw err;

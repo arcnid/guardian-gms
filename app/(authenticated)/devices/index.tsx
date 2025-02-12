@@ -1,4 +1,3 @@
-// app/(authenticated)/devices.js
 import React, { useState, useContext, useCallback } from "react";
 import {
 	StyleSheet,
@@ -36,6 +35,16 @@ const DevicesScreen = () => {
 	const { userId } = useContext(AuthContext);
 
 	console.log("user", userId);
+
+	// Cache buster state that will be updated on every focus
+	const [cacheBuster, setCacheBuster] = useState(Date.now());
+
+	// Update cacheBuster each time the screen is focused
+	useFocusEffect(
+		useCallback(() => {
+			setCacheBuster(Date.now());
+		}, [])
+	);
 
 	// Combined function to fetch devices, images, and then update status based on logs
 	const fetchDevicesAndImages = useCallback(async () => {
@@ -145,6 +154,8 @@ const DevicesScreen = () => {
 	const renderDevice = ({ item }: { item: Device }) => {
 		console.log("Rendering device:", item);
 		const displayName = item.device_name ? item.device_name : item.device_id;
+		// Append the cache buster to the image URL to force refresh
+		const finalImageUri = item.image ? `${item.image}?cb=${cacheBuster}` : null;
 
 		return (
 			<TouchableOpacity
@@ -153,8 +164,8 @@ const DevicesScreen = () => {
 				activeOpacity={0.8}
 			>
 				<View style={styles.deviceInfo}>
-					{item.image ? (
-						<Image source={{ uri: item.image }} style={styles.deviceImage} />
+					{finalImageUri ? (
+						<Image source={{ uri: finalImageUri }} style={styles.deviceImage} />
 					) : (
 						<View style={[styles.deviceImage, styles.placeholderImage]}>
 							<MaterialIcons name="device-hub" size={24} color="#FFFFFF" />
@@ -173,7 +184,9 @@ const DevicesScreen = () => {
 							<Text
 								style={[
 									styles.deviceStatus,
-									{ color: item.status === "Online" ? "#4CAF50" : "#F44336" },
+									{
+										color: item.status === "Online" ? "#4CAF50" : "#F44336",
+									},
 								]}
 							>
 								{item.status === "Online" ? "Online" : "Offline"}

@@ -11,7 +11,8 @@ import {
 	RefreshControl,
 	Platform,
 } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import { UserDeviceService } from "@/services/userDevice/service";
@@ -19,12 +20,10 @@ import BackButton from "@/components/BackButton";
 import { RecentSensorData } from "@/components/devices/RecentSensorData";
 import { SensorChart } from "@/components/devices/SensorChart";
 import { RelayControls } from "@/components/devices/RelayControls";
-import { useRouter } from "expo-router";
 import mime from "mime";
 
 // =============================
 // Helper: Determine the MIME type from the file extension.
-// (This fallback is in case you do not want to use mime for some reason.)
 // =============================
 const getMimeType = (uri: string): string => {
 	if (uri.toLowerCase().endsWith(".png")) {
@@ -55,25 +54,43 @@ interface LogEntry {
 
 const DeviceScreen = () => {
 	const { deviceId } = useLocalSearchParams();
+	const router = useRouter();
+
 	const [deviceData, setDeviceData] = useState<DeviceData>();
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [logs, setLogs] = useState<LogEntry[]>([]);
 	const [latestTempHumid, setLatestTempHumid] = useState<any>(null);
 	const [deviceImageUri, setDeviceImageUri] = useState<string | null>(null);
-	const router = useRouter();
 
 	// Image upload state.
 	const [uploadingImage, setUploadingImage] = useState(false);
+	// New state to track when the image is loading.
+	const [imageLoading, setImageLoading] = useState(false);
 
 	// Refresh state.
 	const [refreshing, setRefreshing] = useState(false);
 	const [refreshCounter, setRefreshCounter] = useState(0);
 
+	// A cache-buster state that will be updated each time the screen is focused.
+	const [cacheBuster, setCacheBuster] = useState(Date.now());
+
+	// Update cacheBuster each time the screen is focused.
+	useFocusEffect(
+		useCallback(() => {
+			setCacheBuster(Date.now());
+		}, [])
+	);
+
+	// Compute a cache-busted image URL using the cacheBuster.
+	const finalImageUrl = useMemo(() => {
+		if (!deviceImageUri) return null;
+		return `${deviceImageUri}?cb=${cacheBuster}`;
+	}, [deviceImageUri, cacheBuster]);
+
 	// Compute relay data (if applicable).
 	const relayData = useMemo(() => {
 		if (logs.length > 0) {
-			console.log(logs);
 			const lastLog = logs[0];
 			const logTime = new Date(lastLog.created_at);
 			const now = new Date();
@@ -85,16 +102,13 @@ const DeviceScreen = () => {
 			} else if (lastLog.relay_state === "off") {
 				relayState = false;
 			}
-			console.log({ online, relayState });
 			return { online, relayState };
 		}
 		return { online: false, relayState: false };
 	}, [logs]);
 
 	/**
-	 * Function to handle image selection and upload.
-	 * We use ImagePicker to choose an image, then we fix the URI on Android
-	 * and build a FormData object with the proper MIME type.
+	 * Handle image selection and upload.
 	 */
 	const handleImageUpload = async () => {
 		try {
@@ -130,17 +144,19 @@ const DeviceScreen = () => {
 
 				setUploadingImage(true);
 
-				// Upload the image. (updateDeviceImage should accept FormData.)
+				// Upload the image.
 				await UserDeviceService.updateDeviceImage(deviceId as string, formData);
 
+				// Retrieve the updated image URL.
 				const updatedImageUrl = await UserDeviceService.getDeviceImageUrl(
 					deviceId as string
 				);
-
 				setDeviceImageUri(updatedImageUrl);
 				setDeviceData((prev) =>
 					prev ? { ...prev, devicePicture: updatedImageUrl } : prev
 				);
+				// Refresh the cache buster to force the image to reload.
+				setCacheBuster(Date.now());
 			}
 		} catch (e) {
 			console.error("Error uploading image:", e);
@@ -156,10 +172,7 @@ const DeviceScreen = () => {
 			return;
 		}
 		try {
-			const res = await UserDeviceService.getDeviceWithLatestLog(
-				deviceId as string
-			);
-			// Use res if needed...
+			await UserDeviceService.getDeviceWithLatestLog(deviceId as string);
 		} catch (e) {
 			console.error(e);
 		}
@@ -197,7 +210,7 @@ const DeviceScreen = () => {
 					deviceId as string
 				);
 				console.log("Setting device image URI:", url);
-				setDeviceImageUri(url as any);
+				setDeviceImageUri(url);
 			} else {
 				setDeviceImageUri(null);
 				console.log("No device picture available.");
@@ -297,22 +310,31 @@ const DeviceScreen = () => {
 				{/* Device Header */}
 				<View style={styles.header}>
 					<TouchableOpacity onPress={handleImageUpload} activeOpacity={0.7}>
-						{deviceImageUri ? (
-							<Image
-								source={{ uri: deviceImageUri }}
-								style={styles.deviceImage}
-								resizeMode="cover"
-								onError={() => setDeviceImageUri(null)}
-							/>
-						) : (
-							<View style={styles.addImageContainer}>
-								{uploadingImage ? (
+						<View style={styles.imageContainer}>
+							{finalImageUrl ? (
+								<Image
+									source={{ uri: finalImageUrl }}
+									style={styles.deviceImage}
+									resizeMode="cover"
+									onLoadStart={() => setImageLoading(true)}
+									onLoadEnd={() => setImageLoading(false)}
+									onError={() => setDeviceImageUri(null)}
+								/>
+							) : (
+								<View style={styles.addImageContainer}>
+									{uploadingImage ? (
+										<ActivityIndicator size="small" color="#71A12F" />
+									) : (
+										<FontAwesome5 name="camera" size={24} color="#555" />
+									)}
+								</View>
+							)}
+							{finalImageUrl && imageLoading && (
+								<View style={styles.imageOverlay}>
 									<ActivityIndicator size="small" color="#71A12F" />
-								) : (
-									<FontAwesome5 name="camera" size={24} color="#555" />
-								)}
-							</View>
-						)}
+								</View>
+							)}
+						</View>
 					</TouchableOpacity>
 					<View style={styles.deviceInfo}>
 						<Text style={styles.deviceName}>{deviceData.device_name}</Text>
@@ -391,6 +413,9 @@ const styles = StyleSheet.create({
 		borderRadius: 10,
 		elevation: 3,
 	},
+	imageContainer: {
+		position: "relative",
+	},
 	deviceActions: {
 		flexDirection: "row",
 		alignItems: "center",
@@ -416,6 +441,17 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 		marginRight: 15,
 		flexDirection: "column",
+	},
+	imageOverlay: {
+		position: "absolute",
+		top: 0,
+		left: 0,
+		right: 0,
+		bottom: 0,
+		backgroundColor: "rgba(255,255,255,0.7)",
+		justifyContent: "center",
+		alignItems: "center",
+		borderRadius: 40,
 	},
 	addImageText: {
 		color: "#555",
